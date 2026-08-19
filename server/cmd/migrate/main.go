@@ -200,6 +200,7 @@ var concurrentIndexCleanups = map[string]string{
 	"347_plugin_secret_installation_key_index":                  "idx_plugin_secret_installation_key",
 	"349_agent_task_queue_chat_terminal_resume_index":           "idx_agent_task_queue_chat_terminal_resume",
 	"350_agent_task_queue_chat_retired_session_index":           "idx_agent_task_queue_chat_retired_session",
+	"352_issue_last_activity_index":                             "idx_issue_workspace_last_activity",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
