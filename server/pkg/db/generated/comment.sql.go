@@ -158,7 +158,9 @@ func (q *Queries) CountNewCommentsSince(ctx context.Context, arg CountNewComment
 
 const createComment = `-- name: CreateComment :one
 WITH touched_issue AS (
-    UPDATE issue SET updated_at = now()
+    UPDATE issue SET
+        updated_at = now(),
+        last_activity_at = GREATEST(COALESCE(last_activity_at, updated_at), now())
     WHERE issue.id = $9 AND issue.workspace_id = $10
     RETURNING issue.id, issue.workspace_id
 )
@@ -182,7 +184,7 @@ type CreateCommentParams struct {
 }
 
 // A new comment counts as activity on its issue, so the same statement bumps
-// the parent issue's updated_at. The touch is a leading data-modifying CTE and
+// the parent issue's updated_at and last_activity_at. The touch is a leading data-modifying CTE and
 // the INSERT selects the issue/workspace back out of it, which makes the two
 // inseparable and gives two query-level guarantees:
 //   - atomicity — the insert and the timestamp bump commit or roll back
@@ -233,7 +235,20 @@ func (q *Queries) CreateComment(ctx context.Context, arg CreateCommentParams) (C
 }
 
 const deleteComment = `-- name: DeleteComment :exec
-DELETE FROM comment WHERE id = $1 AND workspace_id = $2
+WITH target AS (
+    SELECT issue_id, workspace_id
+    FROM comment
+    WHERE comment.id = $1 AND comment.workspace_id = $2
+), touched_issue AS (
+    UPDATE issue
+    SET last_activity_at = GREATEST(COALESCE(last_activity_at, updated_at), now())
+    FROM target
+    WHERE issue.id = target.issue_id AND issue.workspace_id = target.workspace_id
+    RETURNING issue.id
+)
+DELETE FROM comment
+WHERE comment.id = $1 AND comment.workspace_id = $2
+  AND EXISTS (SELECT 1 FROM touched_issue)
 `
 
 type DeleteCommentParams struct {
@@ -1498,11 +1513,23 @@ func (q *Queries) UnresolveComment(ctx context.Context, id pgtype.UUID) (Comment
 }
 
 const updateComment = `-- name: UpdateComment :one
+WITH target AS (
+    SELECT issue_id, workspace_id
+    FROM comment
+    WHERE comment.id = $1
+      AND (comment.content IS DISTINCT FROM $2 OR comment.source_task_id IS DISTINCT FROM $3)
+), touched_issue AS (
+    UPDATE issue
+    SET last_activity_at = GREATEST(COALESCE(last_activity_at, updated_at), now())
+    FROM target
+    WHERE issue.id = target.issue_id AND issue.workspace_id = target.workspace_id
+    RETURNING issue.id
+)
 UPDATE comment SET
     content = $2,
     source_task_id = $3,
     updated_at = now()
-WHERE id = $1
+WHERE comment.id = $1
 RETURNING id, issue_id, author_type, author_id, content, type, created_at, updated_at, parent_id, workspace_id, resolved_at, resolved_by_type, resolved_by_id, source_task_id, quick_action_id, via_plugin_id
 `
 

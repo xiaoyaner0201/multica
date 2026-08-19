@@ -93,4 +93,6 @@ export interface Issue {
   labels?: Label[];
   created_at: string;
   updated_at: string;
+  /** Null until the server's historical activity backfill reaches this row. */
+  last_activity_at?: string | null;
 }

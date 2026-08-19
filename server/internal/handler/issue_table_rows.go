@@ -134,6 +134,10 @@ func (h *Handler) issueTableOrderBy(w http.ResponseWriter, r *http.Request, work
 	case "created_at", "updated_at":
 		resolved.expression = "i." + sortField
 		resolved.castType = "timestamptz"
+	case "last_activity":
+		resolved.expression = "i.last_activity_at"
+		resolved.castType = "timestamptz"
+		resolved.nullsLast = true
 	case "start_date", "due_date":
 		resolved.expression = "i." + sortField
 		resolved.castType = "date"
@@ -349,7 +353,7 @@ func (h *Handler) ListIssueTableRows(w http.ResponseWriter, r *http.Request) {
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at,
-	       i.updated_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
+	       i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
 	       %s AS direct_child_count, i.table_sort_key
 	FROM page i
 	ORDER BY %s`, cte, childCountExpr, resolvedSort.orderBy())
@@ -387,6 +391,7 @@ SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 			&row.issue.DueDate,
 			&row.issue.CreatedAt,
 			&row.issue.UpdatedAt,
+			&row.issue.LastActivityAt,
 			&row.issue.Number,
 			&row.issue.ProjectID,
 			&row.issue.Metadata,

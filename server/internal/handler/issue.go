@@ -62,6 +62,9 @@ type IssueResponse struct {
 	DueDate   *string `json:"due_date"`
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
+	// LastActivityAt is the latest semantic issue activity. It stays nullable
+	// while the operator-run historical backfill is incomplete.
+	LastActivityAt *string `json:"last_activity_at"`
 	// Metadata is the per-issue KV map (see issue_metadata.go). Always emitted
 	// (empty object when unset) so frontend code can `issue.metadata[key]`
 	// without nil-guarding the parent field.
@@ -293,6 +296,7 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		DueDate:        dateToPtr(i.DueDate),
 		CreatedAt:      timestampToString(i.CreatedAt),
 		UpdatedAt:      timestampToString(i.UpdatedAt),
+		LastActivityAt: timestampToNanoPtr(i.LastActivityAt),
 		Metadata:       parseIssueMetadata(i.Metadata),
 		Properties:     parseIssueProperties(i.Properties),
 	}
@@ -328,6 +332,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		DueDate:        dateToPtr(i.DueDate),
 		CreatedAt:      timestampToString(i.CreatedAt),
 		UpdatedAt:      timestampToString(i.UpdatedAt),
+		LastActivityAt: timestampToNanoPtr(i.LastActivityAt),
 		Metadata:       parseIssueMetadata(i.Metadata),
 		Properties:     parseIssueProperties(i.Properties),
 	}
@@ -395,6 +400,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		DueDate:        dateToPtr(i.DueDate),
 		CreatedAt:      timestampToString(i.CreatedAt),
 		UpdatedAt:      timestampToString(i.UpdatedAt),
+		LastActivityAt: timestampToNanoPtr(i.LastActivityAt),
 		Metadata:       parseIssueMetadata(i.Metadata),
 		Properties:     parseIssueProperties(i.Properties),
 	}
@@ -821,7 +827,7 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position,
-		i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id,
+		i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id,
 		COUNT(*) OVER() AS total_count,
 		%s AS match_source,
 		%s AS matched_comment_content
@@ -907,6 +913,7 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 				&sr.issue.DueDate,
 				&sr.issue.CreatedAt,
 				&sr.issue.UpdatedAt,
+				&sr.issue.LastActivityAt,
 				&sr.issue.Number,
 				&sr.issue.ProjectID,
 				&sr.totalCount,
@@ -1195,6 +1202,8 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		switch s {
 		case "position", "title", "created_at", "updated_at", "start_date", "due_date":
 			sortCol = s
+		case "last_activity":
+			sortCol = "last_activity_at"
 		case "status":
 			sortCol = "CASE i.status WHEN 'backlog' THEN 0 WHEN 'todo' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'in_review' THEN 3 WHEN 'done' THEN 4 WHEN 'blocked' THEN 5 WHEN 'cancelled' THEN 6 ELSE 7 END"
 			sortIsExpr = true
@@ -1420,7 +1429,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		orderBy = "i." + sortCol
 	}
 	orderBy += " " + sortDir
-	if sortCol == "start_date" || sortCol == "due_date" || sortIsProperty {
+	if sortCol == "start_date" || sortCol == "due_date" || sortCol == "last_activity_at" || sortIsProperty {
 		// Property values are sparse: issues without one sort last in both
 		// directions (mirrors the client comparator).
 		orderBy += " NULLS LAST"
@@ -1428,14 +1437,18 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	// created_at alone is not unique (bulk imports share timestamps); without
 	// a unique final key the database may reorder ties between two
 	// LIMIT/OFFSET requests, duplicating or dropping rows at page boundaries.
-	orderBy += ", i.created_at DESC, i.id DESC"
+	if sortCol == "last_activity_at" {
+		orderBy += ", i.id DESC"
+	} else {
+		orderBy += ", i.created_at DESC, i.id DESC"
+	}
 
 	offsetRef := addArg(int64(offset))
 	limitRef := addArg(int64(limit))
 
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.metadata, i.stage, i.properties
+       i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1469,6 +1482,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.DueDate,
 			&row.CreatedAt,
 			&row.UpdatedAt,
+			&row.LastActivityAt,
 			&row.Number,
 			&row.ProjectID,
 			&row.Metadata,
@@ -1949,6 +1963,8 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 		switch s {
 		case "position", "title", "created_at", "updated_at", "start_date", "due_date":
 			sortCol = s
+		case "last_activity":
+			sortCol = "last_activity_at"
 		case "status":
 			sortCol = "CASE i.status WHEN 'backlog' THEN 0 WHEN 'todo' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'in_review' THEN 3 WHEN 'done' THEN 4 WHEN 'blocked' THEN 5 WHEN 'cancelled' THEN 6 ELSE 7 END"
 			sortIsExpr = true
@@ -2000,12 +2016,16 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 		intraGroupOrder = "i." + sortCol
 	}
 	intraGroupOrder += " " + sortDir
-	if sortCol == "start_date" || sortCol == "due_date" || sortIsProperty {
+	if sortCol == "start_date" || sortCol == "due_date" || sortCol == "last_activity_at" || sortIsProperty {
 		intraGroupOrder += " NULLS LAST"
 	}
 	// Unique final key — see ListIssues: created_at ties would otherwise make
 	// ROW_NUMBER() unstable across per-group offset pages.
-	intraGroupOrder += ", i.created_at DESC, i.id DESC"
+	if sortCol == "last_activity_at" {
+		intraGroupOrder += ", i.id DESC"
+	} else {
+		intraGroupOrder += ", i.created_at DESC, i.id DESC"
+	}
 
 	offsetRef := addArg(int64(offset))
 	limitRef := addArg(int64(limit))
@@ -2014,7 +2034,7 @@ WITH ranked AS (
 	SELECT
 		i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
-		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at,
+		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at,
 		i.number, i.project_id, i.metadata, i.stage, i.properties,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
@@ -2027,7 +2047,7 @@ WITH ranked AS (
 SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
-	parent_issue_id, position, start_date, due_date, created_at, updated_at,
+	parent_issue_id, position, start_date, due_date, created_at, updated_at, last_activity_at,
 	number, project_id, metadata, stage, properties, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
@@ -2070,6 +2090,7 @@ ORDER BY
 			&row.DueDate,
 			&row.CreatedAt,
 			&row.UpdatedAt,
+			&row.LastActivityAt,
 			&row.Number,
 			&row.ProjectID,
 			&row.Metadata,
