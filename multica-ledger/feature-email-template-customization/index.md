@@ -57,8 +57,22 @@
 - **流程修订**（20260826-163000 放行人当场宣布）：实现期发现的方案缺陷若影响半径是**局部的**
   （字段取舍、判据歧义、局部矛盾），**就地裁决后由规划补修订分录，实现在原卡片继续，
   不再新建方案卡片重走整轮**。PG16 属此类，故本次不新建方案卡片，HD-53 直接恢复。
-- 当前状态：IMPLEMENTING（r4 已放行，stage 2 在 HD-53 原卡片继续）
-- 卡片：HD-52【方案 r1】stage 1（done）· HD-55【方案 r2】stage 1（done）· HD-56【方案 r3】stage 1（done）· HD-57【方案 r4】stage 1（done）· **HD-53【实现】stage 2（todo，已由放行人提升并唤醒实现）** · HD-54【评审】stage 3（backlog）
+- **T19 / DB 面 = 携带进 stage 3 的两项 `UNVERIFIED`**（20260826-174840 调度独立复算裁决，
+  见 `leader/20260826-174840-gate-t19-evidence-gap.md`）：
+  - **T19**（全仓 `scripts/test-go.sh --race` 全绿）：本容器不可得，且**与本次改动无关**。
+    5 个失败包（`cmd/multica`、`internal/cli`、`internal/daemon`、`internal/daemon/execenv`、
+    `pkg/agent`）对 BASE 逐字节**零 diff**，失败测试集合在 BASE 与 candidate 上一致；
+    承载改动的 `internal/service` race **PASS**（58 ok / 5 FAIL / 63 包）。
+    验证归因的 task marker **经复算不成立**（六种变量组合单独排除后仍 FAIL）。
+    根因是节点拓扑：exec 能力（仅 `/workspaces`）与 marker-free（其余 tmpfs，均 noexec）**不相交**，
+    故**任何 agent 容器都不能签发 T19**，证据须来自真实 CI。
+  - **DB 面**：本容器无 PostgreSQL 服务端（仅客户端二进制，无 docker，`DATABASE_URL` 未设）。
+    `internal/handler` 等包在 TestMain 层整包跳过却仍打印 `ok`（实测 `--- PASS` 计数为 0）。
+    **58 个 `ok` 不得读作全仓 DB 覆盖通过。**
+  - 两项均**不得写成 PASS**，由评审如实列入四维结论的 `UNVERIFIED`，在**闸门 2 由决策者裁定**
+    是否须补真实 CI 结果后再判 READY。裁决权不在评审，也不在调度。
+- 当前状态：REVIEWING（stage 2 终态，HD-54 已提升；不返工 coder、不重跑 QA）
+- 卡片：HD-52【方案 r1】stage 1（done）· HD-55【方案 r2】stage 1（done）· HD-56【方案 r3】stage 1（done）· HD-57【方案 r4】stage 1（done）· HD-53【实现→验证】stage 2（done，U1 交付 + 独立验证完成，残留两项 UNVERIFIED 上抛）· **HD-54【评审】stage 3（todo，20260826-174840 由调度提升）**
 - 闸门：闸门 1 方案审批 / 闸门 2 交付审批，均在父 Issue HD-51 上由调度执行，@ 发起人 dongsjoa
 
 ## 分录
@@ -89,3 +103,4 @@
 | 20260826-164100 | coder | U1 RED→GREEN | coder/20260826-164100-U1-code.md | `ecc74e58` | CANDIDATE |
 | 20260826-165358 | qa | U1 independent charter | qa/20260826-165358-U1-charter.md | `ecc74e58` | — |
 | 20260826-171625 | qa | U1 independent verification | qa/20260826-171625-U1-verification.md | `ecc74e58` | RETURN |
+| 20260826-174840 | leader | T19 EVIDENCE_GAP 路由（7 项数字复算 + 全仓 race 63 包 + BASE 对照 + 6 项假设排除 + 新查 DB 缺口） | leader/20260826-174840-gate-t19-evidence-gap.md | `ecc74e58` | CARRY_UNVERIFIED（不返工，携带进 stage 3） |
