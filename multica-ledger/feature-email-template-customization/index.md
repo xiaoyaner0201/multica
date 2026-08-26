@@ -85,3 +85,5 @@
 | 20260826-154500 | planner | plan r4（裁决 PG16 + 判据重写 + 逐元素回归 PG17–PG19 + 追加约束二成节 + PG15） | planner/20260826-154500-plan-r4.md | `641a2b12` | FROZEN |
 | 20260826-161500 | leader | gate 方案 r4（10 项事实 + 4 组数字 + 3 条代码事实 + 8 项语义判据独立复算） | leader/20260826-161500-gate-plan-r4.md | `641a2b12` | PASS（新增 PG20，非阻塞） |
 | 20260826-163000 | leader | 闸门 1 放行 r4（PG16 照准 + PG20 选 (b)，+3 条追加约束，流程修订） | leader/20260826-163000-gate1-approved-r4.md | `34631e84` | APPROVED |
+| 20260826-164006 | coder | U1 publication notes | coder/20260826-164006-U1-publication-notes.md | `ecc74e58` | — |
+| 20260826-164100 | coder | U1 RED→GREEN | coder/20260826-164100-U1-code.md | `ecc74e58` | CANDIDATE |
