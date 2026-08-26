@@ -7,20 +7,26 @@
 - 冻结计划：`planner/20260826-134000-plan-r3.md`（sha256 `025d33e6…b342ac`），于 20260826-145500
   核对 **PASS**，裁决见 `leader/20260826-145500-gate-plan-r3.md`；于 20260826-150500 经**人工闸门 1
   放行**（发起人 dongsjoa，附两条追加约束），见 `leader/20260826-150500-gate1-approved.md`。
+  r3 已于 20260826-152000 因 **PG16 解冻**，见 `leader/20260826-152000-gate-pg16-route.md`。
   r2（`…-121052-plan-r2.md`）于 20260826-123504 核对 RETURN（PG10/PG11）而**从未冻结**；
-  r1（`…-110423-plan-r1.md`）已于 20260826-115806 解冻。账本 append-only，三份均原样保留。
+  r1（`…-110423-plan-r1.md`）已于 20260826-115806 解冻。账本 append-only，四份均原样保留。
   头部「冻结计划」一行只反映**已过 Gate 的事实**，不反映最新产物（见 `…-123504-gate-plan-r2.md` §5 M-L4）
-- **stage 2 执行依据 = `planner/20260826-134000-plan-r3.md` + `leader/20260826-150500-gate1-approved.md`**。
-  闸门 1 的两条追加约束由该分录承载，r3 不解冻、不出 r4（理由见该分录 §3.2）。两份都读，缺一不可。
-- 未决约束（全部带进 stage 2）：
+- **当前无冻结方案**。实现在 stage 2 开工首日复核即报 `PG16`（验证码模板 `AppURL` 与同节
+  「一个字段都不多」硬规则互斥），调度独立复算成立、阻断，已退规划出 **r4**。
+  r4 = r3 + PG16 裁决 + 既有约束就地落地，**不重开已放行方向**（路线 A、PG1、PG2、Q1–Q5 及
+  两条追加约束全部维持，见 `…-152000-gate-pg16-route.md` §3）。
+- 未决约束（全部带进 r4 与其后的 stage 2）：
+  - **PG16**（阻断）：规划须在「删除 `verificationTemplateData.AppURL`、维持硬规则」与
+    「保留 `AppURL`、明确撤回硬规则并论证授权面扩大的安全性」之间裁决，实现不代决。
+    同时把硬规则第 3 条改写成单一可机械执行的判据（现表述会误伤邀请模板的 `InviteURL`）。
   - **追加约束一**：PR 描述必须主动交代新增路径与内置路径的 998 octet 处理不一致，附可复现构造，
     并说明为何不在本 PR 一并修。产物 `coder/<ts>-publication-notes.md`，责任人 = 实现。
   - **追加约束二**：方案与 PR 描述都要写明 header folding 是正解、本次截断是范围内取舍、
     folding 同时能修掉内置路径 1349 octet 的既有越界。本次**不做** folding。
   - **PG15**（`…-145500-gate-plan-r3.md` §4）——方案 §0.4/§5.1 中 emoji 混排 `71`
     与 `mixed 151` 两个数字构造未记录、不可复算，非阻塞：文档面只许用 91 / 99 / 200 / 67。
-- 当前状态：IMPLEMENTING（闸门 1 已放行，stage 2 进行中）
-- 卡片：HD-52【方案 r1】stage 1（done）· HD-55【方案 r2】stage 1（done）· HD-56【方案 r3】stage 1（done）· **HD-53【实现】stage 2** · HD-54【评审】stage 3（backlog）
+- 当前状态：PLAN_REWORK（第 3 轮返工；PG16 阻断，等待 r4）
+- 卡片：HD-52【方案 r1】stage 1（done）· HD-55【方案 r2】stage 1（done）· HD-56【方案 r3】stage 1（done）· **HD-57【方案 r4】stage 1** · HD-53【实现】stage 2（blocked）· HD-54【评审】stage 3（backlog）
 - 闸门：闸门 1 方案审批 / 闸门 2 交付审批，均在父 Issue HD-51 上由调度执行，@ 发起人 dongsjoa
 
 ## 分录
@@ -43,3 +49,4 @@
 | 20260826-145500 | leader | gate 方案 r3（16 项数字全量复算 + 7 项语义判据） | leader/20260826-145500-gate-plan-r3.md | `51feb441` | PASS（新增 PG15，非阻塞） |
 | 20260826-145530 | coder | U1 PLAN_GAP r3（验证码模板 `AppURL` 白名单冲突） | coder/20260826-145530-U1-plan-gap-r3.md | `dc5a0f97` | RETURN（PG16） |
 | 20260826-150500 | leader | 闸门 1 放行（+2 条追加约束） | leader/20260826-150500-gate1-approved.md | `51feb441` | APPROVED |
+| 20260826-152000 | leader | PG16 路由（4 项证据独立复算）→ r3 解冻，退规划出 r4 | leader/20260826-152000-gate-pg16-route.md | `a9bfbabc` | RETURN（PG16 阻断） |
