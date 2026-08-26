@@ -87,3 +87,4 @@
 | 20260826-163000 | leader | 闸门 1 放行 r4（PG16 照准 + PG20 选 (b)，+3 条追加约束，流程修订） | leader/20260826-163000-gate1-approved-r4.md | `34631e84` | APPROVED |
 | 20260826-164006 | coder | U1 publication notes | coder/20260826-164006-U1-publication-notes.md | `ecc74e58` | — |
 | 20260826-164100 | coder | U1 RED→GREEN | coder/20260826-164100-U1-code.md | `ecc74e58` | CANDIDATE |
+| 20260826-165358 | qa | U1 independent charter | qa/20260826-165358-U1-charter.md | `ecc74e58` | — |
