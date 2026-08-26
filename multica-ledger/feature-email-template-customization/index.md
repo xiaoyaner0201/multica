@@ -71,9 +71,28 @@
     **58 个 `ok` 不得读作全仓 DB 覆盖通过。**
   - 两项均**不得写成 PASS**，由评审如实列入四维结论的 `UNVERIFIED`，在**闸门 2 由决策者裁定**
     是否须补真实 CI 结果后再判 READY。裁决权不在评审，也不在调度。
-- 当前状态：REVIEWING（stage 2 终态，HD-54 已提升；不返工 coder、不重跑 QA）
-- 卡片：HD-52【方案 r1】stage 1（done）· HD-55【方案 r2】stage 1（done）· HD-56【方案 r3】stage 1（done）· HD-57【方案 r4】stage 1（done）· HD-53【实现→验证】stage 2（done，U1 交付 + 独立验证完成，残留两项 UNVERIFIED 上抛）· **HD-54【评审】stage 3（todo，20260826-174840 由调度提升）**
-- 闸门：闸门 1 方案审批 / 闸门 2 交付审批，均在父 Issue HD-51 上由调度执行，@ 发起人 dongsjoa
+- **闸门 2（交付审批）= 当前所在位置，结论 `RETURN`，不判 READY**
+  （20260826-183500 调度独立核对，见 `leader/20260826-183500-gate2-return.md`）：
+  - 事实层 12 项全部复算一致；评审引用的每个 digest 都对得上。
+  - **开放 high `F1`：空 / 纯空白 / 仅注释的模板文件被判为渲染成功，产出空邮件，
+    不告警、不回落，HTTP 仍回 200——自建部署的唯一登录通道静默失效。**
+    我在仓库外独立复现（`Parse`/零值 `diagnose`/运行期 `Execute` 三环节全部无错），
+    并把影响面扩大两处：**(a) SMTP 通道同样无守卫**（评审只在 Resend 侧复现过）；
+    **(b) 只空一个文件即触发半空形态**（主题正常、正文无码，比两个都空更隐蔽）。
+  - `F2`（medium，`INVARIANT_VIOLATION`）：`maxSubjectFieldRunes = 60` 的逐字段钓鱼额度
+    在模板主题路径上不生效，跨租户可控的 `WorkspaceName` 放宽到 91（CJK）/ 200（ASCII）。
+  - `F3`（medium，`PLAN_GAP`）：§7.2 的挂载目录信任边界结论未进任何交付文档（我全量 grep 复核）。
+  - **返工去向三条全部指向规划**，判为**增量修订不是重写**；**当前不路由到验证**
+    （判据未定前补探针＝把裁决权推给写测试的人）。
+  - Pass 1 → Pass 2 的两条撤销（F4 TTL 双字面量、F5 内置主题 1349 octet）**照准**。
+  - **本轮进闸门而非直接派返工**，因为有三项裁决权只在决策者：T19/DB 面是否须补真实 CI、
+    U1 上游取向不可验（评审 L3-2 另指出「只把 DB+UI 限定在邀请邮件上，方案 C 重新可行」）、
+    F2 的范围取舍。**不起返工卡片**，等决策者裁定，避免替它预设「要再做一轮」。
+  - M-L25 实测：追加约束三/四/五**全部被评审检查到**（其 §0 把 gate1 分录列为必读、§1.7 逐条 PASS），
+    预测的静默失效未发生；但这是派单钉指针的功劳，不是正本规定了对照基准，**建议维持**。
+- 当前状态：**GATE 2 — `RETURN`，父 Issue `in_review` 待决策者裁决**
+- 卡片：HD-52【方案 r1】stage 1（done）· HD-55【方案 r2】stage 1（done）· HD-56【方案 r3】stage 1（done）· HD-57【方案 r4】stage 1（done）· HD-53【实现→验证】stage 2（done）· HD-54【评审】stage 3（done，Pass 1 盲审 + Pass 2 证据挑战，四维结论 RETURN）
+- 闸门：闸门 1 方案审批（20260826-163000 已放行）/ 闸门 2 交付审批（20260826-183500 核对 RETURN，待裁决），均在父 Issue HD-51 上，@ 发起人 dongsjoa
 
 ## 分录
 
@@ -106,3 +125,4 @@
 | 20260826-174840 | leader | T19 EVIDENCE_GAP 路由（7 项数字复算 + 全仓 race 63 包 + BASE 对照 + 6 项假设排除 + 新查 DB 缺口） | leader/20260826-174840-gate-t19-evidence-gap.md | `ecc74e58` | CARRY_UNVERIFIED（不返工，携带进 stage 3） |
 | 20260826-180154 | reviewer | Pass 1 盲审重建（16 项行为图 + 19 探针，含 SMTP 线级）| reviewer/20260826-180154-blind-audit.md | `ecc74e58` | FROZEN（F1 high / F2 medium，四维待 Pass 2）|
 | 20260826-181735 | reviewer | Pass 2 证据挑战 + 四维结论（5 项证据挑战 + Council 三 lens 共 22 问 + 追加约束三/四/五 核查）| reviewer/20260826-181735-verdict.md | `ecc74e58` | **RETURN**（F1 high PLAN_GAP / F2 medium INVARIANT_VIOLATION+SECURITY / F3 medium PLAN_GAP；Intent·Invariant·Evidence FAIL，Exact Tree PASS；U1 + T19 + DB 面 UNVERIFIED 原样携带）|
+| 20260826-183500 | leader | **闸门 2 核对**（12 项事实复算 + F1 仓库外独立复现并扩大影响面两处 + F2/F3 代码与文档面复核 + 5 项语义判据 + 返工路由照准 + M-L25 实测）| leader/20260826-183500-gate2-return.md | `ecc74e58` | **RETURN**（开放 high F1，不判 READY；三条 finding 全部去向规划，判为增量修订；进闸门而非直接派返工，因 T19/DB、U1、F2 范围三项裁决权只在决策者）|
