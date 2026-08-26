@@ -105,3 +105,4 @@
 | 20260826-171625 | qa | U1 independent verification | qa/20260826-171625-U1-verification.md | `ecc74e58` | RETURN |
 | 20260826-174840 | leader | T19 EVIDENCE_GAP 路由（7 项数字复算 + 全仓 race 63 包 + BASE 对照 + 6 项假设排除 + 新查 DB 缺口） | leader/20260826-174840-gate-t19-evidence-gap.md | `ecc74e58` | CARRY_UNVERIFIED（不返工，携带进 stage 3） |
 | 20260826-180154 | reviewer | Pass 1 盲审重建（16 项行为图 + 19 探针，含 SMTP 线级）| reviewer/20260826-180154-blind-audit.md | `ecc74e58` | FROZEN（F1 high / F2 medium，四维待 Pass 2）|
+| 20260826-181735 | reviewer | Pass 2 证据挑战 + 四维结论（5 项证据挑战 + Council 三 lens 共 22 问 + 追加约束三/四/五 核查）| reviewer/20260826-181735-verdict.md | `ecc74e58` | **RETURN**（F1 high PLAN_GAP / F2 medium INVARIANT_VIOLATION+SECURITY / F3 medium PLAN_GAP；Intent·Invariant·Evidence FAIL，Exact Tree PASS；U1 + T19 + DB 面 UNVERIFIED 原样携带）|
