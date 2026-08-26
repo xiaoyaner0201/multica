@@ -1,0 +1,475 @@
+{
+  "root": "server",
+  "files_parsed": 1555,
+  "producer_and_helper_call_sites": [
+    {
+      "file": "server/cmd/server/router.go",
+      "line": 421,
+      "callee": "service.NewEmailService",
+      "enclosing": "NewRouterWithOptions",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/handler/auth.go",
+      "line": 356,
+      "callee": "h.EmailService.SendVerificationCode",
+      "enclosing": "(*Handler).SendCode",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/handler/handler_test.go",
+      "line": 66,
+      "callee": "service.NewEmailService",
+      "enclosing": "TestMain",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/handler/invitation.go",
+      "line": 240,
+      "callee": "h.EmailService.SendInvitationEmail",
+      "enclosing": "(*Handler).CreateInvitation",
+      "in_go_stmt": true,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 187,
+      "callee": "resolveFromEmail",
+      "enclosing": "NewEmailService",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 262,
+      "callee": "s.openSMTPClient",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 276,
+      "callee": "s.openSMTPClient",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 350,
+      "callee": "s.sendSMTP",
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 376,
+      "callee": "buildInvitationParams",
+      "enclosing": "(*EmailService).SendInvitationEmail",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 377,
+      "callee": "s.sendSMTP",
+      "enclosing": "(*EmailService).SendInvitationEmail",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 383,
+      "callee": "buildInvitationParams",
+      "enclosing": "(*EmailService).SendInvitationEmail",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 394,
+      "callee": "sanitizeSubjectField",
+      "enclosing": "buildInvitationParams",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 395,
+      "callee": "sanitizeSubjectField",
+      "enclosing": "buildInvitationParams",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 124,
+      "callee": "sanitizeSubjectField",
+      "enclosing": "TestSanitizeSubjectField",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 158,
+      "callee": "NewEmailService",
+      "enclosing": "TestNewEmailService_TLSMode",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 185,
+      "callee": "NewEmailService",
+      "enclosing": "TestNewEmailService_EHLOName",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 245,
+      "callee": "NewEmailService",
+      "enclosing": "TestNewEmailService_FromEmailResolution",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 261,
+      "callee": "s.sendSMTP",
+      "enclosing": "TestSendSMTPRequiresConfiguredFromEmail",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 322,
+      "callee": "buildInvitationParams",
+      "enclosing": "TestBuildInvitationParams_EscapesHTMLInBody",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 344,
+      "callee": "buildInvitationParams",
+      "enclosing": "TestBuildInvitationParams_SubjectStripsControls",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 361,
+      "callee": "buildInvitationParams",
+      "enclosing": "TestBuildInvitationParams_SubjectNotHTMLEscaped",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 378,
+      "callee": "buildInvitationParams",
+      "enclosing": "TestBuildInvitationParams_SubjectTruncated",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 397,
+      "callee": "buildInvitationParams",
+      "enclosing": "TestBuildInvitationParams_ToAndFromPassedThrough",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 490,
+      "callee": "s.sendSMTP",
+      "enclosing": "TestSendSMTP_OpenClientFailureNoPanic",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 661,
+      "callee": "s.sendSMTP",
+      "enclosing": "TestSendSMTP_FallbackReconnectsAndAuthsWithLOGIN",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 685,
+      "callee": "s.sendSMTP",
+      "enclosing": "TestSendSMTP_PlainAuthSucceedsWithoutFallback",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email_test.go",
+      "line": 705,
+      "callee": "s.sendSMTP",
+      "enclosing": "TestSendSMTP_NoAuthWhenUsernameEmpty",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    }
+  ],
+  "sink_call_sites_in_email_go": [
+    {
+      "file": "server/internal/service/email.go",
+      "line": 203,
+      "callee": "fmt.Printf",
+      "enclosing": "NewEmailService",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 219,
+      "callee": "fmt.Printf",
+      "enclosing": "NewEmailService",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 233,
+      "callee": "fmt.Printf",
+      "enclosing": "NewEmailService",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 235,
+      "callee": "fmt.Printf",
+      "enclosing": "NewEmailService",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 237,
+      "callee": "fmt.Println",
+      "enclosing": "NewEmailService",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 309,
+      "callee": "c.Mail",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 312,
+      "callee": "c.Rcpt",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 315,
+      "callee": "c.Data",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 328,
+      "callee": "fmt.Fprintf",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 353,
+      "callee": "fmt.Printf",
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 362,
+      "callee": "s.client.Emails.Send",
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 380,
+      "callee": "fmt.Printf",
+      "enclosing": "(*EmailService).SendInvitationEmail",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 384,
+      "callee": "s.client.Emails.Send",
+      "enclosing": "(*EmailService).SendInvitationEmail",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    }
+  ],
+  "escape_or_encode_call_sites_in_email_go": [
+    {
+      "file": "server/internal/service/email.go",
+      "line": 292,
+      "callee": "mime.QEncoding.Encode",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 302,
+      "callee": "quotedprintable.NewWriter",
+      "enclosing": "(*EmailService).sendSMTP",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 392,
+      "callee": "html.EscapeString",
+      "enclosing": "buildInvitationParams",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 393,
+      "callee": "html.EscapeString",
+      "enclosing": "buildInvitationParams",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 394,
+      "callee": "sanitizeSubjectField",
+      "enclosing": "buildInvitationParams",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 395,
+      "callee": "sanitizeSubjectField",
+      "enclosing": "buildInvitationParams",
+      "in_go_stmt": false,
+      "in_defer_stmt": false
+    }
+  ],
+  "recipient_visible_string_literals_in_email_go": [
+    {
+      "file": "server/internal/service/email.go",
+      "line": 319,
+      "enclosing": "(*EmailService).sendSMTP",
+      "head": "From: "
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 320,
+      "enclosing": "(*EmailService).sendSMTP",
+      "head": "To: "
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 321,
+      "enclosing": "(*EmailService).sendSMTP",
+      "head": "Subject: "
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 324,
+      "enclosing": "(*EmailService).sendSMTP",
+      "head": "MIME-Version: 1.0\\r\\n"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 325,
+      "enclosing": "(*EmailService).sendSMTP",
+      "head": "Content-Type: text/html; charset=UTF-8\\r\\n"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 326,
+      "enclosing": "(*EmailService).sendSMTP",
+      "head": "Content-Transfer-Encoding: "
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 342,
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "head": "\u003cdiv style=\"font-family: sans-serif; max-width: 400px; margin: 0 auto;\"\u003e\\n\\t\\t\\t\u003ch2\u003eYour verification code\u003c/h2\u003e\\n\\t\\t\\t\u003c…"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 350,
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "head": "Your Multica verification code"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 353,
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "head": "[DEV] Verification code for %s: %s\\n"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 359,
+      "enclosing": "(*EmailService).SendVerificationCode",
+      "head": "Your Multica verification code"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 380,
+      "enclosing": "(*EmailService).SendInvitationEmail",
+      "head": "[DEV] Invitation email to %s: %s invited you to %s — %s\\n"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 400,
+      "enclosing": "buildInvitationParams",
+      "head": "%s invited you to %s on Multica"
+    },
+    {
+      "file": "server/internal/service/email.go",
+      "line": 402,
+      "enclosing": "buildInvitationParams",
+      "head": "\u003cdiv style=\"font-family: sans-serif; max-width: 480px; margin: 0 auto;\"\u003e\\n\\t\\t\\t\\t\u003ch2\u003eYou're invited to join %s\u003c/h2\u003e\\n\\t…"
+    }
+  ],
+  "env_keys_read_in_email_go": [
+    "FRONTEND_ORIGIN",
+    "RESEND_API_KEY",
+    "RESEND_FROM_EMAIL",
+    "SMTP_EHLO_NAME",
+    "SMTP_FROM_EMAIL",
+    "SMTP_HOST",
+    "SMTP_PASSWORD",
+    "SMTP_PORT",
+    "SMTP_TLS",
+    "SMTP_TLS_INSECURE",
+    "SMTP_USERNAME"
+  ],
+  "unresolved_notes": [
+    "NAME-BASED AST MATCH ONLY (no go/types): a call through an interface value, a function value, or reflect.MethodByName whose selector text differs from the target name is NOT reported by this tool.",
+    "Templates/assets are not scanned: this tool proves nothing about non-Go files."
+  ]
+}
