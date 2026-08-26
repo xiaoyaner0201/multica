@@ -1,0 +1,56 @@
+==== C1 bare address ====
+input: "sender@example.com"
+  C: MAIL FROM:<sender@example.com> BODY=8BITMIME
+  D: From: sender@example.com
+  ERR: harness: end-of-DATA close: EOF
+
+==== C2 ascii display name (quoted) ====
+input: "\"Example Team\" <sender@example.com>"
+  C: MAIL FROM:<"Example Team" <sender@example.com>> BODY=8BITMIME
+  D: From: "Example Team" <sender@example.com>
+  ERR: harness: end-of-DATA close: EOF
+
+==== C3 ascii display name (unquoted) ====
+input: "Example Team <sender@example.com>"
+  C: MAIL FROM:<Example Team <sender@example.com>> BODY=8BITMIME
+  D: From: Example Team <sender@example.com>
+  ERR: harness: end-of-DATA close: EOF
+
+==== C4 non-ascii display name ====
+input: "示例团队 <sender@example.com>"
+  C: MAIL FROM:<示例团队 <sender@example.com>> BODY=8BITMIME
+  D: From: 示例团队 <sender@example.com>
+  ERR: harness: end-of-DATA close: EOF
+
+==== C5 angle-only ====
+input: "<sender@example.com>"
+  C: MAIL FROM:<<sender@example.com>> BODY=8BITMIME
+  D: From: <sender@example.com>
+  ERR: harness: end-of-DATA close: EOF
+
+==== C6 whitespace-only ====
+input: "   "
+  C: MAIL FROM:<   > BODY=8BITMIME
+  D: From:    
+  ERR: harness: end-of-DATA close: EOF
+
+==== C7 unparseable ====
+input: "not an address"
+  C: MAIL FROM:<not an address> BODY=8BITMIME
+  D: From: not an address
+  ERR: harness: end-of-DATA close: EOF
+
+==== C8 multi-mailbox ====
+input: "a@example.com, b@example.com"
+  C: MAIL FROM:<a@example.com, b@example.com> BODY=8BITMIME
+  D: From: a@example.com, b@example.com
+  ERR: harness: end-of-DATA close: EOF
+
+==== C9 CRLF injection ====
+input: "sender@example.com\r\nBcc: evil@example.com"
+  ERR: MAIL FROM rejected at client: smtp: A line must not contain CR or LF
+
+==== C10 bare LF injection in display name ====
+input: "Ev\nil <sender@example.com>"
+  ERR: MAIL FROM rejected at client: smtp: A line must not contain CR or LF
+

@@ -1,0 +1,788 @@
+{
+  "schema_version": "behavior-inventory.v1",
+  "subject": {
+    "repo": "https://github.com/xiaoyaner0201/multica",
+    "base_commit": "620f99d8ce168ee56bfcfacf359b3bcca30f21bf",
+    "base_tree": "9fb8974cdc4038f9c42a99f3fbf1613729f89def"
+  },
+  "generator": {
+    "name": "HD-49 BEHAVIOR_DISCOVERY Run (agent 实现/Coder, Multica task 8c198cbd-edf5-4a57-8936-4c42456c9b50)",
+    "version": "1",
+    "mode": "structured-manual-enumeration + ripgrep symbol sweep + git history read + standalone wire-capture probe of the current-tree sink byte sequence",
+    "maturity": "D1",
+    "produced_by_run_id": "8c198cbd-edf5-4a57-8936-4c42456c9b50",
+    "produced_by_context_id": "agent:fd2d1252-2974-4998-8b7e-128c7c7c2c36/container-slot:4c42456c9b50/issue:8d1cabf6-3113-40bd-9e01-f968644c7819",
+    "produced_at": "2026-08-26T06:48:55Z",
+    "command": "git checkout 620f99d8ce168ee56bfcfacf359b3bcca30f21bf; rg -n 'fromEmail|FROM_EMAIL|sendSMTP|SendVerificationCode|SendInvitationEmail|NewEmailService|net/smtp|resend-go|Emails\\.Send' --glob '!multica-ledger/**'; sed -n '240,275p;420,430p' \"$(go env GOROOT)/src/net/smtp/smtp.go\"; go build -o .probe-build/probe ./probe && ./.probe-build/probe   # probe source archived at coder/20260826-064855-sink-probe.go.txt; it replicates email.go L309/L319 against a permissive capture server and prints the MAIL FROM and From: bytes for 10 input shapes",
+    "coverage_note": "D1 structured manual enumeration. This inventory is NOT an upper bound on the behavior surface. Basis: (a) whole-repo ripgrep for every identifier in the SMTP_FROM_EMAIL chain, which is tractable here because the Go module has exactly one net/smtp importer and one resend-go importer (server/internal/service/email.go); (b) direct reading of every line of email.go and email_test.go; (c) reading Go 1.27.0 stdlib net/smtp Client.Mail and validateLine to establish the envelope format string and the CR/LF guard; (d) a standalone wire-capture probe outside the repository that replays the exact current-tree emission order (c.Mail then \"From: \"+raw) for ten value shapes and records the received bytes. Known blind spots, all also carried as UNVERIFIED candidates: relay-side echo of the offending MAIL FROM argument into 5xx reply text (C16), the SMTPUTF8 envelope-parameter branch which no probe server advertised (C14), scope of the eight non-.env.example documentation surfaces (C35), out-of-tree environment injection (C41), out-of-tree consumers of the startup from= stdout line (C42), and Go stdlib version drift between the go1.25.6 cited by the parent Issue and the go1.27.0 used here (C43). No AST, Semgrep, CodeQL or registry-driven analysis was run; none exists for Go in this repository, and the skillhub-java fixtures are repository-specific and were not used. Dynamic or reflective reachability was not analysed; Go has no runtime handler registration on this path, but that is an argument, not a proof."
+  },
+  "candidates": [
+    {
+      "candidate_id": "C01",
+      "consumer": "resolveFromEmail return path: Resend mode with RESEND_FROM_EMAIL set",
+      "relationship_source": "os.Getenv(\"RESEND_FROM_EMAIL\") read at email.go:115, returned at email.go:118 when smtpHost == \"\"",
+      "eligibility_boundary": "SMTP_HOST unset/blank (email.go:116) AND trimmed RESEND_FROM_EMAIL non-empty (email.go:117)",
+      "sinks": ["EmailService.fromEmail field (email.go:242)", "startup stdout log email.go:235", "resend.SendEmailRequest.From (email.go:357, email.go:398)"],
+      "affected_invariants": ["INV3-fallback-order", "INV6-resend-unaffected"],
+      "required_states": ["SMTP_HOST=\"\"", "RESEND_FROM_EMAIL=\"resend@example.com\""],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Current behavior is correct and must be preserved byte-for-byte. Cannot be falsified on the current tree.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail",
+        "lines": "114-121",
+        "covered_by_existing_test": "email_test.go:211-215 TestNewEmailService_FromEmailResolution/\"resend mode uses resend from\""
+      }
+    },
+    {
+      "candidate_id": "C02",
+      "consumer": "resolveFromEmail return path: hardcoded default \"noreply@multica.ai\"",
+      "relationship_source": "literal return at email.go:120",
+      "eligibility_boundary": "SMTP_HOST unset/blank AND trimmed RESEND_FROM_EMAIL empty. Unreachable when SMTP_HOST is set — SMTP mode has no default.",
+      "sinks": ["EmailService.fromEmail field (email.go:242)", "startup stdout log email.go:235", "resend.SendEmailRequest.From (email.go:357, email.go:398)"],
+      "affected_invariants": ["INV3-fallback-order", "INV6-resend-unaffected"],
+      "required_states": ["SMTP_HOST=\"\"", "RESEND_FROM_EMAIL=\"\""],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Asymmetry worth Planner attention: the default exists only on the Resend branch. If validation is added at resolution time it must not start applying this default to the SMTP branch.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail",
+        "lines": "116-121",
+        "covered_by_existing_test": "email_test.go:231-234 TestNewEmailService_FromEmailResolution/\"default\""
+      }
+    },
+    {
+      "candidate_id": "C03",
+      "consumer": "resolveFromEmail return path: SMTP mode returns trimmed SMTP_FROM_EMAIL",
+      "relationship_source": "os.Getenv(\"SMTP_FROM_EMAIL\") read and trimmed at email.go:122, returned at email.go:123",
+      "eligibility_boundary": "SMTP_HOST non-blank AND trimmed SMTP_FROM_EMAIL non-empty",
+      "sinks": ["EmailService.fromEmail field (email.go:242)", "startup stdout log email.go:233", "c.Mail envelope (email.go:309)", "From: header bytes (email.go:319)"],
+      "affected_invariants": ["INV1-backcompat-bare-address", "INV3-fallback-order"],
+      "required_states": ["SMTP_HOST=\"smtp.example.com\"", "SMTP_FROM_EMAIL=\"sender@example.com\"", "SMTP_FROM_EMAIL=\"\\\"Example Team\\\" <sender@example.com>\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "This is the single entry point for the value the parent Issue disputes. The value is returned verbatim after TrimSpace with no grammar validation of any kind. A probe asserting that a display-name value is accepted and split into envelope/header forms fails on the current tree.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail",
+        "lines": "122-124",
+        "covered_by_existing_test": "email_test.go:216-223 covers the bare-address case only; no display-name case exists"
+      }
+    },
+    {
+      "candidate_id": "C04",
+      "consumer": "resolveFromEmail return path: SMTP mode falls through to resendFrom, which may be the empty string",
+      "relationship_source": "unconditional return of resendFrom at email.go:125",
+      "eligibility_boundary": "SMTP_HOST non-blank AND trimmed SMTP_FROM_EMAIL empty. No default is applied on this branch, so the function can legitimately return \"\".",
+      "sinks": ["EmailService.fromEmail field (email.go:242)", "startup stdout log email.go:233 printing from= with an empty value", "sendSMTP config-error guard (email.go:258)"],
+      "affected_invariants": ["INV2-empty-config-error", "INV3-fallback-order", "INV4-auth-sender-independence"],
+      "required_states": ["SMTP_HOST set, SMTP_FROM_EMAIL=\"\", RESEND_FROM_EMAIL=\"resend@example.com\"", "SMTP_HOST set, SMTP_FROM_EMAIL=\"\", RESEND_FROM_EMAIL=\"\" (returns \"\")"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "The both-empty sub-state is NOT covered by any existing test: TestNewEmailService_FromEmailResolution never exercises SMTP mode with both from-variables empty, even though that state is the one that produces the empty fromEmail feeding the L258 guard. It is also the state where an accidental SMTP_USERNAME fallback would be invisible.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail",
+        "lines": "125",
+        "covered_by_existing_test": "email_test.go:224-230 covers only the RESEND_FROM_EMAIL-set sub-state"
+      }
+    },
+    {
+      "candidate_id": "C05",
+      "consumer": "strings.TrimSpace normalization applied to both environment reads",
+      "relationship_source": "email.go:115 and email.go:122",
+      "eligibility_boundary": "always applied at resolution time; it is the only normalization anywhere in the chain",
+      "sinks": ["value stored in EmailService.fromEmail (email.go:242)"],
+      "affected_invariants": ["INV2-empty-config-error", "INV3-fallback-order"],
+      "required_states": ["SMTP_FROM_EMAIL=\"  sender@example.com  \"", "SMTP_FROM_EMAIL=\"   \" (whitespace-only)"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Consequence that must not be lost: a whitespace-only SMTP_FROM_EMAIL becomes \"\" here and therefore FALLS BACK to RESEND_FROM_EMAIL (C04); it does not reach the L258 guard unless RESEND_FROM_EMAIL is also empty. Any relocation of parsing/validation must preserve this ordering or it silently changes which address is used.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail",
+        "lines": "115,122"
+      }
+    },
+    {
+      "candidate_id": "C06",
+      "consumer": "sole production write point of EmailService.fromEmail",
+      "relationship_source": "NewEmailService computes from := resolveFromEmail(smtpHost) at email.go:187 and assigns fromEmail: from in the struct literal at email.go:242",
+      "eligibility_boundary": "process startup; NewEmailService is called once from server/cmd/server/router.go:423 and once from server/internal/handler/handler_test.go:66",
+      "sinks": ["every downstream fromEmail reader: email.go:258, 309, 319, 357, 376, 383"],
+      "affected_invariants": ["INV1-backcompat-bare-address", "INV3-fallback-order"],
+      "required_states": ["process start with SMTP_HOST set", "process start with SMTP_HOST unset"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Whole-repo grep confirms exactly one production write. Startup-time validation, if chosen, has this single insertion point; send-time validation has C10/C11 instead. This is a real design fork, not a detail.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "NewEmailService",
+        "lines": "187,240-250",
+        "callers": "server/cmd/server/router.go:423, server/internal/handler/handler_test.go:66"
+      }
+    },
+    {
+      "candidate_id": "C07",
+      "consumer": "test-only direct struct writes of fromEmail that bypass resolveFromEmail entirely",
+      "relationship_source": "composite literals &EmailService{fromEmail: \"from@example.com\", ...} in email_test.go",
+      "eligibility_boundary": "test binaries only; not reachable in production",
+      "sinks": ["sendSMTP guard (email.go:258)", "c.Mail envelope (email.go:309)", "From: header (email.go:319)"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["go test ./internal/service/"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Material for the Planner: any validation placed in resolveFromEmail or NewEmailService is NOT exercised by these four tests, because they inject fromEmail past it. A QA probe must decide deliberately whether it enters through NewEmailService or through the struct literal, since the two exercise different amounts of the chain.",
+      "evidence": {
+        "path": "server/internal/service/email_test.go",
+        "symbol": "EmailService composite literal",
+        "lines": "484,651,678,699"
+      }
+    },
+    {
+      "candidate_id": "C08",
+      "consumer": "startup stdout log line for SMTP mode",
+      "relationship_source": "fmt.Printf(\"EmailService: SMTP relay %s:%s (%s) from=%s\\n\", smtpHost, smtpPort, tlsLabel, from) at email.go:233",
+      "eligibility_boundary": "smtpHost != \"\" at email.go:228",
+      "sinks": ["process stdout, i.e. container logs / log aggregation"],
+      "affected_invariants": [],
+      "required_states": ["SMTP_HOST set at startup"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "The resolved sender configuration is disclosed at startup in full. Not a credential, but it is the one place the from value leaves the process outside the mail path, and it will print an empty value for the C04 both-empty state without complaint.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "NewEmailService",
+        "lines": "233"
+      }
+    },
+    {
+      "candidate_id": "C09",
+      "consumer": "startup stdout log line for Resend mode",
+      "relationship_source": "fmt.Printf(\"EmailService: Resend API from=%s\\n\", from) at email.go:235",
+      "eligibility_boundary": "smtpHost == \"\" AND resend client non-nil at email.go:234",
+      "sinks": ["process stdout, i.e. container logs / log aggregation"],
+      "affected_invariants": [],
+      "required_states": ["SMTP_HOST unset and RESEND_API_KEY set at startup"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "NewEmailService",
+        "lines": "235"
+      }
+    },
+    {
+      "candidate_id": "C10",
+      "consumer": "sendSMTP empty/whitespace configuration guard",
+      "relationship_source": "if strings.TrimSpace(s.fromEmail) == \"\" { return fmt.Errorf(...) } at email.go:258-260",
+      "eligibility_boundary": "first statement of sendSMTP, before any network I/O; reached on every SMTP-mode send",
+      "sinks": ["error string \"SMTP_FROM_EMAIL or RESEND_FROM_EMAIL is required when SMTP_HOST is set\" returned to SendVerificationCode/SendInvitationEmail", "slog.Error at handler/auth.go:357", "slog.Warn at handler/invitation.go:241", "HTTP 500 body \"failed to send verification code\" at handler/auth.go:359"],
+      "affected_invariants": ["INV2-empty-config-error"],
+      "required_states": ["fromEmail=\"\"", "fromEmail=\"   \""],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "The exact error string is pinned by an existing test and is a hard backward-compatibility fact. Note that after C05 trimming a whitespace-only env value can only arrive here via a direct struct write (C07) or the C04 both-empty state; the guard's own TrimSpace is therefore partly redundant in production but still load-bearing for C07.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "257-260",
+        "covered_by_existing_test": "email_test.go:253-268 TestSendSMTPRequiresConfiguredFromEmail asserts the exact string"
+      }
+    },
+    {
+      "candidate_id": "C11",
+      "consumer": "SMTP envelope sink — c.Mail(s.fromEmail)",
+      "relationship_source": "email.go:309 passes the raw stored string to net/smtp Client.Mail, which formats it as \"MAIL FROM:<%s>\" (Go 1.27.0 stdlib net/smtp/smtp.go:252) with no quoting, escaping or parsing",
+      "eligibility_boundary": "SMTP mode, past the C10 guard, past openSMTPClient and optional AUTH; reached on every SMTP send from both public entries",
+      "sinks": ["literal MAIL FROM command bytes written to the relay socket"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["fromEmail=\"sender@example.com\"", "fromEmail=\"\\\"Example Team\\\" <sender@example.com>\"", "fromEmail=\"Example Team <sender@example.com>\"", "fromEmail=\"示例团队 <sender@example.com>\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "Wire capture on the current tree, from the archived probe: input \"sender@example.com\" emits `MAIL FROM:<sender@example.com> BODY=8BITMIME`; input `\"Example Team\" <sender@example.com>` emits `MAIL FROM:<\"Example Team\" <sender@example.com>> BODY=8BITMIME`. A probe asserting the envelope carries the addr-spec only fails on the current tree for every display-name shape.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP -> smtp.Client.Mail",
+        "lines": "309-311",
+        "stdlib": "GOROOT/src/net/smtp/smtp.go:245-263 cmdStr = \"MAIL FROM:<%s>\"",
+        "probe": "multica-ledger/hd-47-smtp-from-mailbox/coder/20260826-064855-sink-probe.go.txt cases C1-C5"
+      }
+    },
+    {
+      "candidate_id": "C12",
+      "consumer": "RFC 5322 From: header sink — raw string concatenation",
+      "relationship_source": "headers := \"From: \" + s.fromEmail + \"\\r\\n\" at email.go:319, written to the DATA writer at email.go:328",
+      "eligibility_boundary": "SMTP mode, after MAIL FROM and RCPT TO have both been accepted by the relay",
+      "sinks": ["From: header bytes inside the DATA payload delivered to the recipient"],
+      "affected_invariants": ["INV1-backcompat-bare-address", "INV5-no-header-injection"],
+      "required_states": ["fromEmail=\"sender@example.com\"", "fromEmail=\"示例团队 <sender@example.com>\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "No RFC 2047 encoding is applied, in direct contrast to Subject at email.go:292 which uses mime.QEncoding.Encode. Wire capture confirms the CJK case emits raw UTF-8: `From: 示例团队 <sender@example.com>`. A probe asserting an encoded-word From header fails on the current tree.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP header assembly",
+        "lines": "319,328",
+        "contrast": "email.go:292 encodedSubject := mime.QEncoding.Encode(\"utf-8\", subject)",
+        "probe": "multica-ledger/hd-47-smtp-from-mailbox/coder/20260826-064855-sink-probe.go.txt case C4"
+      }
+    },
+    {
+      "candidate_id": "C13",
+      "consumer": "net/smtp validateLine CR/LF rejection inside Client.Mail",
+      "relationship_source": "smtp.Client.Mail calls validateLine(from) first (GOROOT/src/net/smtp/smtp.go:246, 425-430), returning \"smtp: A line must not contain CR or LF\"",
+      "eligibility_boundary": "runs at email.go:309, which is BEFORE the header string is built at email.go:319 — the guard is positional, not intrinsic to the header path",
+      "sinks": ["error returned from email.go:310 wrapped as \"smtp MAIL FROM: %w\"; the send aborts and nothing is written to DATA"],
+      "affected_invariants": ["INV5-no-header-injection"],
+      "required_states": ["fromEmail=\"sender@example.com\\r\\nBcc: evil@example.com\"", "fromEmail=\"Ev\\nil <sender@example.com>\""],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "STRUCTURAL FINDING, flagged even though the parent Issue does not mention it. The From: header at email.go:319 has no CR/LF validation of its own. Today a CR/LF-bearing value cannot reach it only because c.Mail runs first and aborts the send. Any change that alters what is handed to c.Mail, or that reorders/relaxes this call, moves the header-injection surface from unreachable to reachable. Probe evidence: inputs C9 and C10 both abort at the client with the stdlib error and emit no MAIL FROM line at all.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP -> smtp.Client.Mail -> validateLine",
+        "lines": "309-311,319",
+        "stdlib": "GOROOT/src/net/smtp/smtp.go:246,425-430",
+        "probe": "multica-ledger/hd-47-smtp-from-mailbox/coder/20260826-064855-sink-probe.go.txt cases C9,C10"
+      }
+    },
+    {
+      "candidate_id": "C14",
+      "consumer": "envelope parameters appended to the MAIL FROM line by the stdlib",
+      "relationship_source": "smtp.Client.Mail appends \" BODY=8BITMIME\" when the relay advertises 8BITMIME and \" SMTPUTF8\" when it advertises SMTPUTF8 (GOROOT/src/net/smtp/smtp.go:252-260)",
+      "eligibility_boundary": "depends on the relay EHLO extension list, which is negotiated after the optional STARTTLS upgrade",
+      "sinks": ["the complete MAIL FROM command line, of which the address is only one part"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["relay advertises 8BITMIME", "relay advertises SMTPUTF8", "relay advertises neither"],
+      "must_fail_old": false,
+      "verification_status": "UNVERIFIED",
+      "note": "UNVERIFIED. The 8BITMIME branch is confirmed by probe capture (` BODY=8BITMIME` appears on every successful case). The SMTPUTF8 branch was never exercised: no probe server and no existing test advertises SMTPUTF8, and no live relay was available. A byte-for-byte envelope assertion must therefore pin the relay's advertised extension set explicitly, or it will assert on an accident of the harness rather than on the code. Whether a non-ASCII address (not display name) additionally requires SMTPUTF8 negotiation on real relays is not established here.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP -> smtp.Client.Mail",
+        "lines": "309",
+        "stdlib": "GOROOT/src/net/smtp/smtp.go:252-260"
+      }
+    },
+    {
+      "candidate_id": "C15",
+      "consumer": "same-batch header bytes emitted alongside From:",
+      "relationship_source": "single concatenated headers string at email.go:319-327 covering From, To, Subject, Date, Message-ID, MIME-Version, Content-Type and Content-Transfer-Encoding",
+      "eligibility_boundary": "SMTP mode, inside DATA",
+      "sinks": ["recipient-visible header block"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["any successful SMTP send"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Enumerated so a byte-level probe does not accidentally over-assert. Facts: Subject IS RFC 2047 encoded (email.go:292,321) while From is not (email.go:319) — the asymmetry is inside one string literal. To at email.go:320 is also raw, but its value is a recipient address supplied by the caller, not by SMTP_FROM_EMAIL. Date uses time.Now() and Message-ID uses time.Now().UnixNano() plus s.smtpHost (email.go:293) — both are non-deterministic and neither derives from the from address, so a golden-bytes assertion must exclude them. Message-ID's domain is the SMTP host, not the sender domain; that is pre-existing and not part of this change.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP header assembly",
+        "lines": "291-293,319-328"
+      }
+    },
+    {
+      "candidate_id": "C16",
+      "consumer": "error paths that may carry sender configuration outward",
+      "relationship_source": "fmt.Errorf(\"smtp MAIL FROM: %w\", err) at email.go:310 wraps the relay's reply text; the wrapped error propagates to slog.Error(\"failed to send verification code\", ...) at handler/auth.go:357 and slog.Warn(\"failed to send invitation email\", ...) at handler/invitation.go:241",
+      "eligibility_boundary": "any MAIL FROM rejection; reached whenever the relay refuses the malformed envelope",
+      "sinks": ["server log records", "HTTP 500 response body — which is the fixed string \"failed to send verification code\" (auth.go:359), so no configuration reaches the client"],
+      "affected_invariants": [],
+      "required_states": ["relay returns 5xx to MAIL FROM", "client-side CR/LF rejection (C13)"],
+      "must_fail_old": false,
+      "verification_status": "UNVERIFIED",
+      "note": "UNVERIFIED. Confirmed by source reading: the L259 config error does not contain the value, and the HTTP response body is a fixed string, so there is no client-visible leak. NOT confirmed: whether real relays echo the offending MAIL FROM argument back inside the 5xx reply text that %w then places into the server log. The parent Issue's Aliyun capture shows a bare `500 Error: bad syntax` with no echo, but that is a single relay and cannot be generalised. No live relay was available to this Run.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP error wrapping",
+        "lines": "310",
+        "downstream": "server/internal/handler/auth.go:356-360, server/internal/handler/invitation.go:239-243"
+      }
+    },
+    {
+      "candidate_id": "C17",
+      "consumer": "sendSMTP caller 1 of 2 — SendVerificationCode",
+      "relationship_source": "email.go:349-351 `if s.smtpHost != \"\" { return s.sendSMTP(to, \"Your Multica verification code\", body) }`; called from handler/auth.go:356; routed at server/cmd/server/router.go:1384 `r.With(authRL).Post(\"/auth/send-code\", h.SendCode)`",
+      "eligibility_boundary": "UNAUTHENTICATED public HTTP endpoint. Gates before the send: signup-allowed check (auth.go:305/321), temporarily-disabled-user check (auth.go:316), and a 60-second-per-email rate limit (auth.go:333-337) plus the authRL middleware.",
+      "sinks": ["envelope C11", "header C12", "recipient inbox", "synchronous HTTP 500 to the caller on failure (auth.go:359)"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["POST /api/auth/send-code with SMTP_HOST configured"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "This is the login path. A malformed envelope stops all logins for the deployment, and the failure is synchronous and visible to the user as a 500.",
+      "evidence": {
+        "path": "server/internal/handler/auth.go",
+        "symbol": "Handler.SendCode",
+        "lines": "278,356",
+        "route": "server/cmd/server/router.go:1384",
+        "service_branch": "server/internal/service/email.go:349-351"
+      }
+    },
+    {
+      "candidate_id": "C18",
+      "consumer": "sendSMTP caller 2 of 2 — SendInvitationEmail",
+      "relationship_source": "email.go:375-378 `if s.smtpHost != \"\" { params := buildInvitationParams(...); return s.sendSMTP(to, params.Subject, params.Html) }`; called from handler/invitation.go:240 inside `go func()`; routed at server/cmd/server/router.go:1609 `r.Post(\"/members\", h.CreateInvitation)`",
+      "eligibility_boundary": "authenticated, workspace owner/admin only (RequireWorkspaceRoleFromURL at router.go:1606); additionally guarded by `h.EmailService != nil && workspaceName != \"\"` at invitation.go:233",
+      "sinks": ["envelope C11", "header C12", "invitee inbox", "slog.Warn only (invitation.go:241) — the HTTP 201 has already been written"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["POST /api/workspaces/{id}/members with SMTP_HOST configured"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "ASYNCHRONOUS: the send happens in a detached goroutine after the response is written, so a failure here is silent to the API client and observable only in logs. Any QA probe on this path must synchronise on the goroutine or assert at the service layer; asserting on the HTTP response proves nothing.",
+      "evidence": {
+        "path": "server/internal/handler/invitation.go",
+        "symbol": "Handler.CreateInvitation",
+        "lines": "233-244",
+        "route": "server/cmd/server/router.go:1609",
+        "service_branch": "server/internal/service/email.go:375-378"
+      }
+    },
+    {
+      "candidate_id": "C19",
+      "consumer": "enumerated negative — no third sendSMTP caller exists",
+      "relationship_source": "whole-repository ripgrep for `sendSMTP` returns exactly two non-test call sites, email.go:350 and email.go:377; sendSMTP is unexported and the package has no other file referencing it",
+      "eligibility_boundary": "n/a — this candidate records the absence of a path",
+      "sinks": ["none"],
+      "affected_invariants": [],
+      "required_states": ["static enumeration over base_tree 9fb8974cdc4038f9c42a99f3fbf1613729f89def"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Recorded explicitly because the dispatch asked whether a third caller exists. Answer: no, at this tree. Scope of the claim: unexported symbol, single package, no reflection or code generation on this path. It is a grep-plus-visibility argument, not an AST proof.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "257,350,377",
+        "command": "rg -n 'sendSMTP' --glob '!multica-ledger/**'"
+      }
+    },
+    {
+      "candidate_id": "C20",
+      "consumer": "Resend consumer 1 — SendVerificationCode resend.SendEmailRequest.From",
+      "relationship_source": "email.go:356-357 constructs &resend.SendEmailRequest{From: s.fromEmail, ...} from the SAME resolved field the SMTP path uses",
+      "eligibility_boundary": "smtpHost == \"\" AND s.client != nil (email.go:349,352)",
+      "sinks": ["Resend HTTP API request body", "recipient inbox via Resend"],
+      "affected_invariants": ["INV6-resend-unaffected"],
+      "required_states": ["SMTP_HOST unset, RESEND_API_KEY set, RESEND_FROM_EMAIL set"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "The parent Issue lists the Resend path as a non-goal, but non-goal is not the same as unaffected. Both paths read one field written by one resolver (C06). Any change to resolution, normalization or validation is automatically reachable here. If a fix stores a parsed/normalized value instead of the raw string, the Resend From changes too. This candidate carries INV6 deliberately so it cannot be closed as non-goal without evidence.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "SendVerificationCode Resend branch",
+        "lines": "356-363"
+      }
+    },
+    {
+      "candidate_id": "C21",
+      "consumer": "Resend consumer 2 — buildInvitationParams From field on the Resend branch",
+      "relationship_source": "email.go:383 calls buildInvitationParams(s.fromEmail, ...); buildInvitationParams sets From: from at email.go:398",
+      "eligibility_boundary": "smtpHost == \"\" AND s.client != nil (email.go:375,379)",
+      "sinks": ["Resend HTTP API request body", "invitee inbox via Resend"],
+      "affected_invariants": ["INV6-resend-unaffected"],
+      "required_states": ["SMTP_HOST unset, RESEND_API_KEY set, RESEND_FROM_EMAIL set"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "SendInvitationEmail Resend branch -> buildInvitationParams",
+        "lines": "383-385,391,398",
+        "covered_by_existing_test": "email_test.go:396-413 TestBuildInvitationParams_ToAndFromPassedThrough, bare address only"
+      }
+    },
+    {
+      "candidate_id": "C22",
+      "consumer": "buildInvitationParams invoked on the SMTP branch with its From result discarded",
+      "relationship_source": "email.go:376 calls buildInvitationParams(s.fromEmail, ...) inside the `if s.smtpHost != \"\"` branch, then email.go:377 consumes only params.Subject and params.Html",
+      "eligibility_boundary": "SMTP mode invitation send",
+      "sinks": ["none for the From field — it is written into the struct and dropped; Subject and Html do reach the DATA payload"],
+      "affected_invariants": [],
+      "required_states": ["SMTP mode invitation send"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Enumerated to prevent a false positive: this LOOKS like a from-address consumer in a grep of `s.fromEmail`, but on the SMTP branch the From field never reaches a sink. A Planner reading grep output alone would plausibly mis-model it as a third emission point.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "SendInvitationEmail SMTP branch",
+        "lines": "375-378,391-399"
+      }
+    },
+    {
+      "candidate_id": "C23",
+      "consumer": "SMTP_USERNAME authentication identity and its relation to the sender identity",
+      "relationship_source": "os.Getenv(\"SMTP_USERNAME\") at email.go:184 -> s.smtpUsername (email.go:245) -> used only at email.go:268, 269 and 282 for PLAIN/LOGIN auth",
+      "eligibility_boundary": "auth block runs only when s.smtpUsername != \"\" (email.go:268); unauthenticated relay skips it entirely",
+      "sinks": ["AUTH PLAIN / AUTH LOGIN command bytes — never the MAIL FROM or From: bytes"],
+      "affected_invariants": ["INV4-auth-sender-independence"],
+      "required_states": ["SMTP_HOST set, SMTP_USERNAME set, SMTP_FROM_EMAIL set to a different address", "SMTP_HOST set, SMTP_USERNAME set, both from-variables empty"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Independence HOLDS on the current tree: resolveFromEmail's whole body (email.go:114-126) reads only RESEND_FROM_EMAIL and SMTP_FROM_EMAIL, and git history confirms the boundary was introduced together with resolveFromEmail in 5b57a8ebc (MUL-4460, upstream PR #5322). Coverage gap: TestNewEmailService_FromEmailResolution sets SMTP_USERNAME in its fixtures (email_test.go:241) but never asserts the negative — there is no test in which both from-variables are empty and a distinct SMTP_USERNAME is set, which is precisely the state where an accidental fallback would be introduced and would pass every existing test. Note also that SMTP_USERNAME is the only one of these variables NOT wrapped in TrimSpace.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail / sendSMTP auth block",
+        "lines": "114-126,184,268-286",
+        "history": "git show 5b57a8ebc — resolveFromEmail introduced; no SMTP_USERNAME read"
+      }
+    },
+    {
+      "candidate_id": "C24",
+      "consumer": "value shape — bare addr-spec (the backward-compatibility baseline)",
+      "relationship_source": "SMTP_FROM_EMAIL=\"sender@example.com\" flowing C03 -> C06 -> C11/C12",
+      "eligibility_boundary": "SMTP mode send",
+      "sinks": ["MAIL FROM:<sender@example.com> BODY=8BITMIME", "From: sender@example.com"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["SMTP_FROM_EMAIL=\"sender@example.com\""],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Correct today; a probe pinning these exact bytes PASSES on the current tree, which is what makes it the regression anchor rather than a RED case.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309,319",
+        "probe": "sink-probe case C1"
+      }
+    },
+    {
+      "candidate_id": "C25",
+      "consumer": "value shape — ASCII display name, quoted form",
+      "relationship_source": "SMTP_FROM_EMAIL='\"Example Team\" <sender@example.com>'",
+      "eligibility_boundary": "SMTP mode send",
+      "sinks": ["MAIL FROM:<\"Example Team\" <sender@example.com>> BODY=8BITMIME — nested angle brackets, rejected by real relays per the parent Issue's Aliyun capture", "From: \"Example Team\" <sender@example.com> — this header form is already correct"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["SMTP_FROM_EMAIL='\"Example Team\" <sender@example.com>'"],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309,319",
+        "probe": "sink-probe case C2"
+      }
+    },
+    {
+      "candidate_id": "C26",
+      "consumer": "value shape — ASCII display name, unquoted form",
+      "relationship_source": "SMTP_FROM_EMAIL=\"Example Team <sender@example.com>\"",
+      "eligibility_boundary": "SMTP mode send",
+      "sinks": ["MAIL FROM:<Example Team <sender@example.com>> BODY=8BITMIME", "From: Example Team <sender@example.com>"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["SMTP_FROM_EMAIL=\"Example Team <sender@example.com>\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "Distinct from C25 because the quoted and unquoted forms are different RFC 5322 productions and a parser may normalize them differently, even though the current tree emits both verbatim.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309,319",
+        "probe": "sink-probe case C3"
+      }
+    },
+    {
+      "candidate_id": "C27",
+      "consumer": "value shape — non-ASCII (CJK) display name",
+      "relationship_source": "SMTP_FROM_EMAIL=\"示例团队 <sender@example.com>\"",
+      "eligibility_boundary": "SMTP mode send",
+      "sinks": ["MAIL FROM:<示例团队 <sender@example.com>> BODY=8BITMIME — raw UTF-8 in the envelope", "From: 示例团队 <sender@example.com> — raw UTF-8 in the header, no encoded-word"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["SMTP_FROM_EMAIL=\"示例团队 <sender@example.com>\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "The only shape that exercises BOTH defects at once: invalid envelope and unencoded header. Interacts with C14 — an 8-bit envelope may additionally require SMTPUTF8 negotiation on a real relay, which was not verified.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309,319",
+        "probe": "sink-probe case C4"
+      }
+    },
+    {
+      "candidate_id": "C28",
+      "consumer": "value shape — angle-addr with no display name",
+      "relationship_source": "SMTP_FROM_EMAIL=\"<sender@example.com>\"",
+      "eligibility_boundary": "SMTP mode send",
+      "sinks": ["MAIL FROM:<<sender@example.com>> BODY=8BITMIME — doubled angle brackets", "From: <sender@example.com> — valid"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["SMTP_FROM_EMAIL=\"<sender@example.com>\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "Not mentioned in the parent Issue but a plausible operator input, and it is broken today for the same reason as C25. Also a backward-compatibility trap in the other direction: an operator currently running this value is already broken, so 'preserve today's behavior' and 'accept a valid mailbox' point in opposite directions here. Planner decision, not mine.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309,319",
+        "probe": "sink-probe case C5"
+      }
+    },
+    {
+      "candidate_id": "C29",
+      "consumer": "value shape — unparseable garbage",
+      "relationship_source": "SMTP_FROM_EMAIL=\"not an address\"",
+      "eligibility_boundary": "SMTP mode send; passes the C10 guard because it is non-empty after trimming",
+      "sinks": ["MAIL FROM:<not an address> BODY=8BITMIME sent to the relay", "From: not an address in the header"],
+      "affected_invariants": ["INV2-empty-config-error"],
+      "required_states": ["SMTP_FROM_EMAIL=\"not an address\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "Today there is no error at all: the malformed value is transmitted and the failure, if any, comes from the relay. A probe asserting a clear actionable local error fails on the current tree. The parent Issue leaves startup-time versus send-time validation to the Planner; both C06 and C10 are viable insertion points and they differ in blast radius (startup refuses to boot, send-time fails per message).",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "258,309,319",
+        "probe": "sink-probe case C7"
+      }
+    },
+    {
+      "candidate_id": "C30",
+      "consumer": "value shape — multiple mailboxes in one value",
+      "relationship_source": "SMTP_FROM_EMAIL=\"a@example.com, b@example.com\"",
+      "eligibility_boundary": "SMTP mode send",
+      "sinks": ["MAIL FROM:<a@example.com, b@example.com> BODY=8BITMIME", "From: a@example.com, b@example.com"],
+      "affected_invariants": ["INV2-empty-config-error"],
+      "required_states": ["SMTP_FROM_EMAIL=\"a@example.com, b@example.com\""],
+      "must_fail_old": true,
+      "verification_status": "VERIFIED",
+      "note": "RFC 5322 permits a multi-mailbox From header (with a Sender header), but SMTP permits exactly one reverse-path in the envelope. So this shape has no single correct mapping and forces an explicit Planner decision: reject, or take the first mailbox. Today it is silently transmitted as one malformed envelope.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309,319",
+        "probe": "sink-probe case C8"
+      }
+    },
+    {
+      "candidate_id": "C31",
+      "consumer": "value shape — CR/LF-bearing value (header injection surface)",
+      "relationship_source": "SMTP_FROM_EMAIL=\"sender@example.com\\r\\nBcc: evil@example.com\" or a bare LF inside a display name",
+      "eligibility_boundary": "reaches email.go:309 first; net/smtp validateLine aborts there (C13), so email.go:319 is never reached on the current tree",
+      "sinks": ["today: no wire bytes at all; the send returns \"smtp MAIL FROM: smtp: A line must not contain CR or LF\"", "if the ordering or the value handed to c.Mail changes: injected header lines inside DATA"],
+      "affected_invariants": ["INV5-no-header-injection"],
+      "required_states": ["SMTP_FROM_EMAIL=\"sender@example.com\\r\\nBcc: evil@example.com\"", "SMTP_FROM_EMAIL=\"Ev\\nil <sender@example.com>\""],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "must_fail_old is deliberately FALSE and this needs stating plainly: a probe asserting 'no injected Bcc reaches the header' PASSES on the current tree, so it is NOT a valid RED probe and QA must not accept one as such. The candidate is listed anyway because the protection is incidental — it lives in the stdlib call that runs first, not in the header builder. This is the candidate most likely to be silently regressed by a fix, since splitting the value means c.Mail may stop seeing the display-name bytes that carry the injection. A meaningful probe here asserts the property on the POST-CHANGE tree, or asserts that the display-name portion is independently validated. Configuration is admin/operator-controlled, not end-user-controlled, so severity is bounded — but the parent Issue does not mention this surface at all, and the dispatch explicitly required it as an independent candidate.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP",
+        "lines": "309-311,319",
+        "stdlib": "GOROOT/src/net/smtp/smtp.go:425-430",
+        "probe": "sink-probe cases C9,C10"
+      }
+    },
+    {
+      "candidate_id": "C32",
+      "consumer": "value shape — whitespace-only and empty",
+      "relationship_source": "SMTP_FROM_EMAIL=\"   \" trimmed to \"\" at email.go:122, then C04 fallback; final guard at email.go:258",
+      "eligibility_boundary": "the C10 guard fires only when BOTH SMTP_FROM_EMAIL and RESEND_FROM_EMAIL are empty after trimming",
+      "sinks": ["error \"SMTP_FROM_EMAIL or RESEND_FROM_EMAIL is required when SMTP_HOST is set\"", "no wire bytes"],
+      "affected_invariants": ["INV2-empty-config-error", "INV3-fallback-order"],
+      "required_states": ["SMTP_FROM_EMAIL=\"   \", RESEND_FROM_EMAIL=\"resend@example.com\" -> uses resend@example.com", "SMTP_FROM_EMAIL=\"\", RESEND_FROM_EMAIL=\"\" -> config error"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Correct today and pinned by INV2. The trap for a fix: whitespace-only must keep meaning 'unset, fall back', not 'malformed, error'. Those two readings produce different addresses on a live deployment.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "resolveFromEmail / sendSMTP guard",
+        "lines": "122,125,258-260",
+        "covered_by_existing_test": "email_test.go:253-268 covers the both-empty error only",
+        "probe": "sink-probe case C6 fed c.Mail directly to observe what the sink would emit if the guard were bypassed: MAIL FROM:<   >"
+      }
+    },
+    {
+      "candidate_id": "C33",
+      "consumer": "DEV mode branches that never read fromEmail",
+      "relationship_source": "email.go:352-355 and email.go:379-382 print to stdout and return nil when smtpHost == \"\" and s.client == nil",
+      "eligibility_boundary": "SMTP_HOST unset AND RESEND_API_KEY unset",
+      "sinks": ["process stdout only"],
+      "affected_invariants": [],
+      "required_states": ["SMTP_HOST unset, RESEND_API_KEY unset"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Enumerated to bound the surface: fromEmail is resolved (C02 default) but not read on these branches. Safe to exclude with evidence.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "SendVerificationCode / SendInvitationEmail DEV branches",
+        "lines": "352-355,379-382"
+      }
+    },
+    {
+      "candidate_id": "C34",
+      "consumer": ".env.example documentation of the accepted SMTP_FROM_EMAIL format",
+      "relationship_source": ".env.example:263-264 \"SMTP_FROM_EMAIL is the envelope/header sender for SMTP. If unset, SMTP falls back to RESEND_FROM_EMAIL for backwards compatibility.\" and the variable stub at .env.example:279",
+      "eligibility_boundary": "operator-facing documentation; explicitly named in the parent Issue's In-scope list",
+      "sinks": ["operator configuration decisions"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["reading .env.example when configuring SMTP"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "This sentence is the exact claim the parent Issue disputes — it asserts one string serves both roles, which is the defect stated as documentation.",
+      "evidence": {
+        "path": ".env.example",
+        "symbol": "SMTP_FROM_EMAIL",
+        "lines": "263-264,279"
+      }
+    },
+    {
+      "candidate_id": "C35",
+      "consumer": "parallel documentation surfaces outside .env.example, in four locales",
+      "relationship_source": "apps/docs/content/docs/environment-variables{,.zh,.ja,.ko}.mdx line 96 each, all stating \"Envelope From and message From\" (or its translation); apps/docs/content/docs/auth-setup{,.zh,.ja,.ko}.mdx lines 39 and 50 each, showing SMTP_FROM_EMAIL=noreply@example.com and the fallback rule; SELF_HOSTING_ADVANCED.md:35 for RESEND_FROM_EMAIL",
+      "eligibility_boundary": "operator-facing documentation",
+      "sinks": ["operator configuration decisions"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["reading the published docs site in any of the four locales"],
+      "must_fail_old": false,
+      "verification_status": "UNVERIFIED",
+      "note": "UNVERIFIED as to scope, not as to existence. The files and lines are enumerated and confirmed. What this Run cannot resolve: the parent Issue's In-scope list names only \".env.example documentation of the accepted format\", so whether these eight additional files must move in the same change is a Source Contract question for the Planner. Flagged rather than silently dropped because leaving four locales asserting the old single-string semantics while .env.example asserts the new one is a documented inconsistency, and because MUL-4460 (5b57a8ebc) did update all four locales together — the repository's own precedent is to change them as a set.",
+      "evidence": {
+        "path": "apps/docs/content/docs/environment-variables.mdx",
+        "symbol": "SMTP_FROM_EMAIL",
+        "lines": "96",
+        "siblings": "environment-variables.zh.mdx:96, environment-variables.ja.mdx:96, environment-variables.ko.mdx:96, auth-setup.mdx:39,50, auth-setup.zh.mdx:39,50, auth-setup.ja.mdx:39,50, auth-setup.ko.mdx:39,50",
+        "precedent": "git show 5b57a8ebc --stat shows all four environment-variables locales updated in one commit"
+      }
+    },
+    {
+      "candidate_id": "C36",
+      "consumer": "self-host configuration plumbing that passes SMTP_FROM_EMAIL through to the server process",
+      "relationship_source": "docker-compose.selfhost.yml:77 `SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}`; deploy/helm/multica/templates/configmap.yaml:18 exposes RESEND_FROM_EMAIL but NOT SMTP_FROM_EMAIL; scripts/selfhost-config.test.sh:43 writes `SMTP_FROM_EMAIL=multica@example.com` and line 58 asserts the generated config contains `SMTP_FROM_EMAIL: multica@example.com`",
+      "eligibility_boundary": "self-hosted deployments using the compose or helm paths",
+      "sinks": ["the environment of the server process, i.e. the input to C03"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["self-host config generation with SMTP_FROM_EMAIL set"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "Two concrete facts for the Planner. First, scripts/selfhost-config.test.sh asserts an unquoted bare address round-trips through YAML generation; a display-name value contains characters (quotes, angle brackets, commas, non-ASCII) whose YAML round-tripping through that generator is NOT covered by any test. Second, the Helm configmap template exposes RESEND_FROM_EMAIL but has no SMTP_FROM_EMAIL key at all, so Helm deployments cannot set it through values today — a pre-existing gap, listed so it is not mistaken for something this change introduced.",
+      "evidence": {
+        "path": "docker-compose.selfhost.yml",
+        "symbol": "SMTP_FROM_EMAIL",
+        "lines": "77",
+        "siblings": "deploy/helm/multica/templates/configmap.yaml:18, scripts/selfhost-config.test.sh:43,58"
+      }
+    },
+    {
+      "candidate_id": "C37",
+      "consumer": "existing test coverage — TestNewEmailService_FromEmailResolution",
+      "relationship_source": "server/internal/service/email_test.go:202-251, table-driven over four cases",
+      "eligibility_boundary": "go test ./internal/service/",
+      "sinks": ["assertion on s.fromEmail only — the test stops at the resolved field and never reaches a wire sink"],
+      "affected_invariants": ["INV3-fallback-order"],
+      "required_states": ["baseline test run on base_tree"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "COVERS: C01, C02, C03 (bare address only), C04 (RESEND_FROM_EMAIL-set sub-state only). DOES NOT COVER: any display-name shape (C25-C28), C04's both-empty sub-state, C23's negative assertion that SMTP_USERNAME never becomes the sender, and every wire-level candidate. Verified green on base_tree.",
+      "evidence": {
+        "path": "server/internal/service/email_test.go",
+        "symbol": "TestNewEmailService_FromEmailResolution",
+        "lines": "202-251"
+      }
+    },
+    {
+      "candidate_id": "C38",
+      "consumer": "existing test coverage — TestSendSMTPRequiresConfiguredFromEmail",
+      "relationship_source": "server/internal/service/email_test.go:253-268",
+      "eligibility_boundary": "go test ./internal/service/",
+      "sinks": ["exact-string assertion on the returned error"],
+      "affected_invariants": ["INV2-empty-config-error"],
+      "required_states": ["baseline test run on base_tree"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "COVERS: C10 and the empty sub-state of C32, pinning the error string byte-for-byte. This is the concrete lock on INV2 — any fix that changes the message breaks it, which is the intended behavior of the test. Verified green on base_tree.",
+      "evidence": {
+        "path": "server/internal/service/email_test.go",
+        "symbol": "TestSendSMTPRequiresConfiguredFromEmail",
+        "lines": "253-268"
+      }
+    },
+    {
+      "candidate_id": "C39",
+      "consumer": "existing SMTP test harness — testSMTPServer is a permissive sink that discards the bytes under test",
+      "relationship_source": "server/internal/service/email_test.go:502-638; the MAIL FROM branch at lines 610-611 answers `250 OK` without capturing the line, and the DATA branch at lines 616-625 reads until the terminating dot and discards every line",
+      "eligibility_boundary": "used by TestSendSMTP_FallbackReconnectsAndAuthsWithLOGIN, TestSendSMTP_PlainAuthSucceedsWithoutFallback and TestSendSMTP_NoAuthWhenUsernameEmpty, all of which assert only `err == nil`",
+      "sinks": ["none — the harness has no field in which a received MAIL FROM or From: line is retained"],
+      "affected_invariants": ["INV1-backcompat-bare-address", "INV5-no-header-injection"],
+      "required_states": ["baseline test run on base_tree"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "This is the single most important coverage fact in the inventory and it corroborates the parent Issue's warning to QA. No existing test can observe C11 or C12, because the harness answers 250 to any MAIL FROM and throws the DATA payload away. Three tests currently send a full message through this server and pass; they would still pass with a completely malformed envelope. Any RED probe for C11/C12/C25/C26/C27 requires extending or replacing this harness to retain the received lines first — otherwise the probe asserts on send success, which is exactly the false-negative the parent Issue told QA to avoid. must_fail_old is FALSE because this candidate describes harness capability, not production behavior; it is not itself a RED target.",
+      "evidence": {
+        "path": "server/internal/service/email_test.go",
+        "symbol": "testSMTPServer.handleConn",
+        "lines": "502-638,610-611,616-625",
+        "dependent_tests": "email_test.go:640,667,691"
+      }
+    },
+    {
+      "candidate_id": "C40",
+      "consumer": "existing test coverage — buildInvitationParams From pass-through",
+      "relationship_source": "server/internal/service/email_test.go:396-413 TestBuildInvitationParams_ToAndFromPassedThrough asserts p.From == \"noreply@multica.ai\"",
+      "eligibility_boundary": "go test ./internal/service/",
+      "sinks": ["assertion on the resend.SendEmailRequest.From field"],
+      "affected_invariants": ["INV6-resend-unaffected"],
+      "required_states": ["baseline test run on base_tree"],
+      "must_fail_old": false,
+      "verification_status": "VERIFIED",
+      "note": "COVERS: C21's pass-through with a bare address. DOES NOT COVER: C20 at all (SendVerificationCode's Resend branch has no test), nor any non-bare value on either Resend consumer. If a fix normalizes the stored value, this is the only existing tripwire on the Resend side and it only fires for the bare shape. Verified green on base_tree.",
+      "evidence": {
+        "path": "server/internal/service/email_test.go",
+        "symbol": "TestBuildInvitationParams_ToAndFromPassedThrough",
+        "lines": "396-413"
+      }
+    },
+    {
+      "candidate_id": "C41",
+      "consumer": "out-of-tree environment injection of SMTP_FROM_EMAIL",
+      "relationship_source": "operator-supplied process environment: Kubernetes secrets, systemd unit files, PaaS dashboards, CI secret stores and any deployment manifest not committed to this repository",
+      "eligibility_boundary": "cannot be determined from this tree",
+      "sinks": ["the input to C03, hence C11 and C12"],
+      "affected_invariants": ["INV1-backcompat-bare-address"],
+      "required_states": ["unknown"],
+      "must_fail_old": false,
+      "verification_status": "UNVERIFIED",
+      "note": "UNVERIFIED and not defaulted to safe. This Run enumerated only in-tree configuration plumbing (C36). Real deployments may inject SMTP_FROM_EMAIL through channels invisible here, which matters because it bounds what 'backward compatible' can be verified to mean: the distribution of values currently in production is unknown, so INV1 can be checked against value SHAPES (C24-C32) but not against a real population. Relevant to the startup-time versus send-time validation decision — startup-time validation turns an existing bad value into a boot failure for an operator who cannot be surveyed from here.",
+      "evidence": {
+        "path": "docker-compose.selfhost.yml",
+        "symbol": "SMTP_FROM_EMAIL",
+        "lines": "77",
+        "scope_note": "in-tree channels enumerated at C36; out-of-tree channels are not enumerable from base_tree"
+      }
+    },
+    {
+      "candidate_id": "C42",
+      "consumer": "out-of-tree consumers of the startup `from=` stdout line",
+      "relationship_source": "the log line emitted at email.go:233 and email.go:235 leaves the process; any log scraper, alerting rule or support runbook that matches on it is outside this repository",
+      "eligibility_boundary": "cannot be determined from this tree",
+      "sinks": ["external log pipelines"],
+      "affected_invariants": [],
+      "required_states": ["unknown"],
+      "must_fail_old": false,
+      "verification_status": "UNVERIFIED",
+      "note": "UNVERIFIED. Listed for completeness rather than because it is likely material: if a fix changes what is stored in fromEmail (for example storing a parsed form), this log line's content changes with it. No in-tree consumer of the line exists.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "NewEmailService startup log",
+        "lines": "233,235"
+      }
+    },
+    {
+      "candidate_id": "C43",
+      "consumer": "Go standard library version drift on the envelope format",
+      "relationship_source": "the envelope format string and the CR/LF guard live in the Go toolchain, not in this repository: GOROOT/src/net/smtp/smtp.go:252 and 425-430",
+      "eligibility_boundary": "whichever Go toolchain builds the server binary",
+      "sinks": ["MAIL FROM command bytes (C11)", "the CR/LF abort (C13)"],
+      "affected_invariants": ["INV1-backcompat-bare-address", "INV5-no-header-injection"],
+      "required_states": ["go1.25.6 as cited by the parent Issue", "go1.27.0 as used by this Run"],
+      "must_fail_old": false,
+      "verification_status": "UNVERIFIED",
+      "note": "UNVERIFIED across versions. All stdlib facts in this inventory were read from go1.27.0 linux/arm64, the toolchain present in this container. The parent Issue cites go1.25.6 for the same `MAIL FROM:<%s>` format string, and the two agree on that string and on validateLine. NOT cross-verified: whether the SMTPUTF8 envelope-parameter branch (C14) is present and identical in both versions, and what toolchain CI actually builds with. A byte-for-byte envelope assertion inherits this dependency, so the probe should assert on the address portion rather than on the entire command line unless the extension set is pinned.",
+      "evidence": {
+        "path": "server/internal/service/email.go",
+        "symbol": "sendSMTP -> smtp.Client.Mail",
+        "lines": "309",
+        "stdlib": "go1.27.0 GOROOT/src/net/smtp/smtp.go:245-263,425-430",
+        "parent_issue_claim": "go1.25.6 net/smtp/smtp.go:252"
+      }
+    }
+  ]
+}

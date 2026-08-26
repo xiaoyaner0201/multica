@@ -15,3 +15,4 @@
 | 时间 | Agent | 动作 | 产物 | tree | 结论 |
 |---|---|---|---|---|---|
 | 20260826-063943 | leader | intake+dispatch | leader/20260826-063943-intake-dispatch.md | — | — |
+| 20260826-064855 | coder | BEHAVIOR_DISCOVERY | coder/20260826-064855-behavior-discovery.md | — | FROZEN |

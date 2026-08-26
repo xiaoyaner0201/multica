@@ -1,0 +1,59 @@
+"""Standalone behavior-inventory.v1 schema check.
+
+Reproduces exactly the inventory check validate_gate.py performs at
+scripts/validate_gate.py:514-522, using the same schema file and the same
+jsonschema version pinned by run_gate.sh. run_gate.sh itself has no
+--kind inventory mode (choices are plan|qa|review) and every mode requires a
+Plan/QA/Review artifact that does not exist at Stage 1, so the inventory is
+validated here in isolation.
+"""
+
+import hashlib
+import json
+import pathlib
+import sys
+
+import jsonschema
+
+schema_path = pathlib.Path(__file__).parent / "schemas" / "behavior-inventory.schema.json"
+inventory_path = pathlib.Path(sys.argv[1])
+
+schema = json.loads(schema_path.read_text())
+raw = inventory_path.read_bytes()
+inventory = json.loads(raw)
+
+errors = sorted(
+    jsonschema.Draft202012Validator(schema).iter_errors(inventory),
+    key=lambda e: list(e.absolute_path),
+)
+for err in errors:
+    where = "/".join(str(p) for p in err.absolute_path) or "<root>"
+    print(f"SCHEMA VIOLATION at {where}: {err.message}")
+if errors:
+    sys.exit(1)
+
+gen = inventory["generator"]
+ids = [c["candidate_id"] for c in inventory["candidates"]]
+dupes = sorted({i for i in ids if ids.count(i) > 1})
+if dupes:
+    print(f"DUPLICATE candidate_id: {dupes}")
+    sys.exit(1)
+if gen["maturity"] == "D0":
+    print("D0 inventory is self-reported scope and cannot close Plan coverage")
+    sys.exit(1)
+
+print("schema: PASS  (behavior-inventory.v1)")
+print(f"schema_file_sha256   {hashlib.sha256(schema_path.read_bytes()).hexdigest()}")
+print(f"inventory_sha256     {hashlib.sha256(raw).hexdigest()}")
+print(f"jsonschema_version   {jsonschema.__version__}")
+print(f"candidates           {len(ids)} unique")
+print(f"maturity             {gen['maturity']}")
+print(f"produced_by_run_id   {gen['produced_by_run_id']}")
+print(f"produced_by_ctx_id   {gen['produced_by_context_id']}")
+if gen["maturity"] == "D1":
+    print(
+        "WARNING (mandatory, mirrors validate_gate.py:93-98): D1 discovery — this "
+        "inventory is NOT an upper bound on the behavior surface; the Reviewer must "
+        "trace independently and must not treat absence from this list as absence "
+        "from the system."
+    )

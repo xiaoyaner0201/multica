@@ -1,0 +1,164 @@
+// Throwaway discovery probe for HD-49 (BEHAVIOR_DISCOVERY).
+// Replicates, byte-for-byte, what server/internal/service/email.go sendSMTP
+// emits at its two sinks on the CURRENT tree:
+//   L309  c.Mail(s.fromEmail)                    -> envelope
+//   L319  headers := "From: " + s.fromEmail + CRLF -> header
+// It does NOT import the repo and does NOT propose a fix; it only records what
+// the current code path puts on the wire for each candidate input shape.
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"net"
+	"net/smtp"
+	"strings"
+	"time"
+)
+
+// captureServer is a permissive SMTP sink: it answers 250 to everything and
+// records every line it received. Permissiveness is deliberate — it reproduces
+// the blind spot called out in HD-47 ("the defect is invisible against a
+// permissive SMTP server").
+type capture struct {
+	lines []string
+}
+
+func serve(l net.Listener, cap *capture, done chan struct{}) {
+	defer close(done)
+	conn, err := l.Accept()
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
+	w := func(s string) { fmt.Fprintf(rw, "%s\r\n", s); rw.Flush() }
+	r := func() string {
+		line, err := rw.ReadString('\n')
+		if err != nil {
+			return ""
+		}
+		return strings.TrimRight(line, "\r\n")
+	}
+	w("220 capture ESMTP")
+	if !strings.HasPrefix(strings.ToUpper(r()), "EHLO") {
+		return
+	}
+	w("250-capture Hello")
+	w("250-8BITMIME")
+	w("250 OK")
+	inData := false
+	for {
+		line := r()
+		if line == "" {
+			return
+		}
+		if inData {
+			if line == "." {
+				inData = false
+				cap.lines = append(cap.lines, "D: .")
+				w("250 OK")
+				continue
+			}
+			cap.lines = append(cap.lines, "D: "+line)
+			continue
+		}
+		up := strings.ToUpper(line)
+		switch {
+		case strings.HasPrefix(up, "MAIL FROM:"):
+			cap.lines = append(cap.lines, "C: "+line)
+			w("250 OK")
+		case strings.HasPrefix(up, "RCPT TO:"):
+			cap.lines = append(cap.lines, "C: "+line)
+			w("250 OK")
+		case up == "DATA":
+			cap.lines = append(cap.lines, "C: "+line)
+			inData = true
+			w("354 go ahead")
+		case strings.HasPrefix(up, "QUIT"):
+			w("221 bye")
+			return
+		default:
+			w("250 OK")
+		}
+	}
+}
+
+// emit mirrors the current sendSMTP ordering exactly: Mail -> Rcpt -> Data ->
+// "From: " + raw. Nothing is parsed, nothing is encoded.
+func emit(fromEmail string) ([]string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, err
+	}
+	defer l.Close()
+	cap := &capture{}
+	done := make(chan struct{})
+	go serve(l, cap, done)
+
+	conn, err := net.DialTimeout("tcp", l.Addr().String(), 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	host, _, _ := net.SplitHostPort(l.Addr().String())
+	c, err := smtp.NewClient(conn, host)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	// L309 equivalent
+	if err := c.Mail(fromEmail); err != nil {
+		return cap.lines, fmt.Errorf("MAIL FROM rejected at client: %w", err)
+	}
+	if err := c.Rcpt("to@example.com"); err != nil {
+		return cap.lines, err
+	}
+	w, err := c.Data()
+	if err != nil {
+		return cap.lines, err
+	}
+	// L319 equivalent (only the From: line matters here)
+	headers := "From: " + fromEmail + "\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: probe\r\n\r\n"
+	if _, err := fmt.Fprintf(w, "%s%s", headers, "<p>x</p>"); err != nil {
+		return cap.lines, err
+	}
+	closeErr := w.Close()
+	_ = c.Quit()
+	<-done
+	if closeErr != nil {
+		return cap.lines, fmt.Errorf("harness: end-of-DATA close: %w", closeErr)
+	}
+	return cap.lines, nil
+}
+
+func main() {
+	cases := []struct{ name, val string }{
+		{"C1 bare address", "sender@example.com"},
+		{"C2 ascii display name (quoted)", `"Example Team" <sender@example.com>`},
+		{"C3 ascii display name (unquoted)", "Example Team <sender@example.com>"},
+		{"C4 non-ascii display name", "示例团队 <sender@example.com>"},
+		{"C5 angle-only", "<sender@example.com>"},
+		{"C6 whitespace-only", "   "},
+		{"C7 unparseable", "not an address"},
+		{"C8 multi-mailbox", "a@example.com, b@example.com"},
+		{"C9 CRLF injection", "sender@example.com\r\nBcc: evil@example.com"},
+		{"C10 bare LF injection in display name", "Ev\nil <sender@example.com>"},
+	}
+	for _, tc := range cases {
+		fmt.Printf("==== %s ====\ninput: %q\n", tc.name, tc.val)
+		lines, err := emit(tc.val)
+		for _, ln := range lines {
+			if strings.HasPrefix(ln, "C: MAIL FROM:") || strings.HasPrefix(ln, "D: From:") ||
+				strings.HasPrefix(ln, "D: Bcc:") {
+				fmt.Printf("  %s\n", ln)
+			}
+		}
+		if err != nil {
+			fmt.Printf("  ERR: %v\n", err)
+		}
+		fmt.Println()
+	}
+}

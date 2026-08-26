@@ -1,0 +1,9 @@
+schema: PASS  (behavior-inventory.v1)
+schema_file_sha256   6948ac7e9da372dbd209014975dad878bb33e0399a0136f268ad90a3306c2a79
+inventory_sha256     b4d374f29489178f4fa90faa9df74abfb40db85464963b7c8c13d16a29670491
+jsonschema_version   4.25.1
+candidates           43 unique
+maturity             D1
+produced_by_run_id   8c198cbd-edf5-4a57-8936-4c42456c9b50
+produced_by_ctx_id   agent:fd2d1252-2974-4998-8b7e-128c7c7c2c36/container-slot:4c42456c9b50/issue:8d1cabf6-3113-40bd-9e01-f968644c7819
+WARNING (mandatory, mirrors validate_gate.py:93-98): D1 discovery — this inventory is NOT an upper bound on the behavior surface; the Reviewer must trace independently and must not treat absence from this list as absence from the system.
