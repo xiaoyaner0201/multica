@@ -104,3 +104,4 @@
 | 20260826-165358 | qa | U1 independent charter | qa/20260826-165358-U1-charter.md | `ecc74e58` | — |
 | 20260826-171625 | qa | U1 independent verification | qa/20260826-171625-U1-verification.md | `ecc74e58` | RETURN |
 | 20260826-174840 | leader | T19 EVIDENCE_GAP 路由（7 项数字复算 + 全仓 race 63 包 + BASE 对照 + 6 项假设排除 + 新查 DB 缺口） | leader/20260826-174840-gate-t19-evidence-gap.md | `ecc74e58` | CARRY_UNVERIFIED（不返工，携带进 stage 3） |
+| 20260826-180154 | reviewer | Pass 1 盲审重建（16 项行为图 + 19 探针，含 SMTP 线级）| reviewer/20260826-180154-blind-audit.md | `ecc74e58` | FROZEN（F1 high / F2 medium，四维待 Pass 2）|
