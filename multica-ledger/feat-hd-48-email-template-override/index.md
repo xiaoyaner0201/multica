@@ -14,3 +14,4 @@
 |---|---|---|---|---|---|
 | 20260826-065534 | leader | intake + dispatch discovery | leader/20260826-065534-dispatch.md | — | — |
 | 20260826-070548 | coder | BEHAVIOR_DISCOVERY | coder/20260826-070548-behavior-discovery.md | — | FROZEN |
+| 20260826-071815 | leader | discovery 接收 + 派 Plan | leader/20260826-071815-discovery-accepted-dispatch-plan.md | `d557983da` | PASS |
