@@ -4,9 +4,10 @@
 - 仓库：`https://github.com/xiaoyaner0201/multica`（`origin` = fork，`upstream` = `multica-ai/multica`）
 - Base：`f74a71060fcdd45318cae6fb7caf7c0d7e71cdfa`（live `upstream/main` @ 2026-08-26，tree `57e81be90cc49effdc55aa2f06f16aef35689aba`）
 - 风险分级：`HIGH_RISK`
-- 冻结计划：`planner/20260826-110423-plan-r1.md`（sha256 `e70497a2…`，subject tree `37fb17c8…`）
-- 当前状态：IMPLEMENTING（闸门 1 已放行）
-- 卡片：HD-52【方案】stage 1 · HD-53【实现】stage 2 · HD-54【评审】stage 3
+- 冻结计划：**无（r1 已解冻）**。`planner/20260826-110423-plan-r1.md` 因 PG1/PG2 于 20260826-115806 解冻，
+  待 r2 冻结并过闸门 1；解冻裁决见 `leader/20260826-115806-gate-plan-gap-route.md`
+- 当前状态：PLANNING（由 IMPLEMENTING 退回，`PLAN_GAP` 返工）
+- 卡片：HD-52【方案 r1】stage 1（done）· **HD-55【方案 r2】stage 1** · HD-53【实现】stage 2（blocked）· HD-54【评审】stage 3
 - 闸门：闸门 1 方案审批 / 闸门 2 交付审批，均在父 Issue HD-51 上由调度执行，@ 发起人 dongsjoa
 
 ## 分录
@@ -21,3 +22,4 @@
 | 20260826-113307 | leader | supersede 工作区契约 | leader/20260826-113307-supersede-workspace-contract.md | `01d9e4fd` | — |
 | 20260826-114044 | leader | supersede 身份校验 r2 | leader/20260826-114044-supersede-identity-check-r2.md | `01d9e4fd` | — |
 | 20260826-115329 | coder | PLAN_GAP | coder/20260826-115329-plan-gap.md | `e7c2d563` | RETURN |
+| 20260826-115806 | leader | gate PLAN_GAP 路由 | leader/20260826-115806-gate-plan-gap-route.md | `37fb17c8` | RETURN |
