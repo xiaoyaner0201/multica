@@ -61,6 +61,27 @@ The server still starts, but verification codes and invitation links are only wr
 
 The startup log states whether the current mode is `Resend API`, `SMTP relay`, or `DEV mode`.
 
+### Custom email templates
+
+Set `EMAIL_TEMPLATE_DIR` to a directory mounted in the API container. The following files are independently optional:
+
+| File | Available fields |
+|---|---|
+| `verification_code.subject.tmpl` | `Code`, `ExpiresInMinutes`, `AppName` |
+| `verification_code.html.tmpl` | `Code`, `ExpiresInMinutes`, `AppName` |
+| `invitation.subject.tmpl` | `InviterName`, `WorkspaceName`, `InviteURL`, `AppName`, `AppURL` |
+| `invitation.html.tmpl` | `InviterName`, `WorkspaceName`, `InviteURL`, `AppName`, `AppURL` |
+
+Subject files use Go `text/template`; HTML files use `html/template` and contextually escape field values. `{{.AppName}}` always renders as `Multica`. To use your own brand, write it as literal text in the template.
+
+<Callout type="warning">
+Do not put `{{.Code}}` in `verification_code.subject.tmpl`. Subjects can appear in mail-server logs and phone lock-screen previews; the HTML body does not have those exposure points.
+</Callout>
+
+Rendered subjects are limited by both characters and encoded transport size. Pure CJK text fits about 91 characters, CJK text mixed with spaces or ASCII can fit longer (about 99 in a regularly spaced example), pure emoji fits about 67, and pure ASCII can use the full 200-character limit.
+
+Templates are loaded when the API starts, so restart it after editing files. Missing files quietly use the built-in component. An unreadable directory, an invalid template, or a rendering failure produces a warning and falls back to the built-in component; other valid template files remain active.
+
 ## Fixed local verification code
 
 Local automated tests can set a fixed verification code:

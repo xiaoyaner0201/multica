@@ -61,6 +61,27 @@ SMTP_EHLO_NAME=mail.example.com
 
 起動ログには、現在使っているのが `Resend API`、`SMTP relay`、`DEV mode` のどれかが表示されます。
 
+### カスタムメールテンプレート
+
+`EMAIL_TEMPLATE_DIR` に API コンテナへマウントしたディレクトリを指定します。次のファイルはそれぞれ任意で、個別に利用できます:
+
+| ファイル | 利用できるフィールド |
+|---|---|
+| `verification_code.subject.tmpl` | `Code`、`ExpiresInMinutes`、`AppName` |
+| `verification_code.html.tmpl` | `Code`、`ExpiresInMinutes`、`AppName` |
+| `invitation.subject.tmpl` | `InviterName`、`WorkspaceName`、`InviteURL`、`AppName`、`AppURL` |
+| `invitation.html.tmpl` | `InviterName`、`WorkspaceName`、`InviteURL`、`AppName`、`AppURL` |
+
+件名ファイルは Go の `text/template`、HTML ファイルはフィールド値を文脈に応じてエスケープする `html/template` を使います。`{{.AppName}}` は常に `Multica` としてレンダリングされます。独自ブランドを使う場合は、テンプレートにリテラル文字列として記述してください。
+
+<Callout type="warning">
+`verification_code.subject.tmpl` に `{{.Code}}` を入れないでください。件名はメールサーバーのログやスマートフォンのロック画面プレビューに表示されることがありますが、HTML 本文にはそのような露出箇所はありません。
+</Callout>
+
+レンダリング後の件名は、文字数とエンコード後の転送サイズの両方で制限されます。純粋な CJK テキストは約 91 文字、空白や ASCII を混ぜた CJK テキストはさらに長く（規則的に空白を入れた例では約 99 文字）、純粋な絵文字は約 67 文字、純粋な ASCII は 200 文字の上限まで使えます。
+
+テンプレートは API の起動時に読み込まれるため、編集後は再起動してください。存在しないファイルは警告なしで組み込みの該当部分を使います。ディレクトリを読み取れない場合、テンプレートが不正な場合、またはレンダリングに失敗した場合は警告を出し、組み込みの該当部分にフォールバックします。他の有効なテンプレートファイルは引き続き利用されます。
+
 ## ローカル固定認証コード
 
 ローカルの自動テストでは、固定の認証コードを設定できます:

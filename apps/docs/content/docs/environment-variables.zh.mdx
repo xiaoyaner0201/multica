@@ -92,6 +92,12 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `SMTP_TLS_INSECURE` | `false` | 跳过证书校验，仅用于可信内网 |
 | `SMTP_EHLO_NAME` | 主机名 | 严格 relay 要求的 EHLO/FQDN |
 
+### 自定义邮件模板
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `EMAIL_TEMPLATE_DIR` | 空 | 可选的自定义邮件模板目录；API 启动时加载 |
+
 ### Google OAuth
 
 | 变量 | 默认值 | 说明 |

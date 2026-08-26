@@ -92,6 +92,12 @@ Kubernetes で shutdown hold を設定する場合、`terminationGracePeriodSeco
 | `SMTP_TLS_INSECURE` | `false` | 証明書検証をスキップ。信頼できる内部ネットワーク専用 |
 | `SMTP_EHLO_NAME` | ホスト名 | 厳格な relay が要求する EHLO/FQDN |
 
+### カスタムメールテンプレート
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `EMAIL_TEMPLATE_DIR` | 空 | 任意のカスタムメールテンプレートを置くディレクトリ。API の起動時に読み込まれます |
+
 ### Google OAuth
 
 | 変数 | デフォルト | 説明 |

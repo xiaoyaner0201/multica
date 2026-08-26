@@ -92,6 +92,12 @@ Kubernetes에서 shutdown hold를 설정하면 `terminationGracePeriodSeconds`�
 | `SMTP_TLS_INSECURE` | `false` | 인증서 검증 건너뛰기. 신뢰할 수 있는 내부 네트워크에서만 사용 |
 | `SMTP_EHLO_NAME` | host 이름 | 엄격한 relay에서 요구하는 EHLO/FQDN |
 
+### 사용자 지정 이메일 템플릿
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `EMAIL_TEMPLATE_DIR` | 비어 있음 | 선택적 사용자 지정 이메일 템플릿 디렉터리. API 시작 시 로드됨 |
+
 ### Google OAuth
 
 | 변수 | 기본값 | 설명 |

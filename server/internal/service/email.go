@@ -1,16 +1,22 @@
 package service
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"html"
+	htmltemplate "html/template"
+	"io"
 	"mime"
 	"mime/quotedprintable"
 	"net"
 	"net/smtp"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	texttemplate "text/template"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -23,8 +29,38 @@ import (
 // a full phishing pitch into a workspace name that gets sent from our domain.
 const maxSubjectFieldRunes = 60
 
+const (
+	maxRenderedSubjectRunes = 200
+	maxSubjectLineOctets    = 998
+	verificationCodeTTL     = 10 * time.Minute
+	applicationName         = "Multica"
+
+	verificationSubjectTemplateFile = "verification_code.subject.tmpl"
+	verificationHTMLTemplateFile    = "verification_code.html.tmpl"
+	invitationSubjectTemplateFile   = "invitation.subject.tmpl"
+	invitationHTMLTemplateFile      = "invitation.html.tmpl"
+)
+
+type verificationTemplateData struct {
+	Code             string
+	ExpiresInMinutes string
+	AppName          string
+}
+
+type invitationTemplateData struct {
+	InviterName   string
+	WorkspaceName string
+	InviteURL     string
+	AppName       string
+	AppURL        string
+}
+
+type emailSender interface {
+	Send(params *resend.SendEmailRequest) (*resend.SendEmailResponse, error)
+}
+
 type EmailService struct {
-	client          *resend.Client
+	client          emailSender
 	fromEmail       string
 	smtpHost        string
 	smtpPort        string
@@ -33,6 +69,79 @@ type EmailService struct {
 	smtpTLSInsecure bool
 	smtpTLSImplicit bool
 	smtpEHLOName    string
+
+	verificationSubjectTemplate *texttemplate.Template
+	verificationHTMLTemplate    *htmltemplate.Template
+	invitationSubjectTemplate   *texttemplate.Template
+	invitationHTMLTemplate      *htmltemplate.Template
+}
+
+type executableTemplate interface {
+	Execute(io.Writer, any) error
+}
+
+func diagnoseTemplate(name string, tmpl executableTemplate, data any) {
+	if err := tmpl.Execute(io.Discard, data); err != nil {
+		fmt.Printf("EmailService: template diagnostic for %s (template remains active): %v\n", name, err)
+	}
+}
+
+func loadTextEmailTemplate(dir, name string, zero any) *texttemplate.Template {
+	contents, err := os.ReadFile(filepath.Join(dir, name))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		fmt.Printf("EmailService: failed to read template %s: %v\n", name, err)
+		return nil
+	}
+	tmpl, err := texttemplate.New(name).Parse(string(contents))
+	if err != nil {
+		fmt.Printf("EmailService: failed to parse template %s: %v\n", name, err)
+		return nil
+	}
+	diagnoseTemplate(name, tmpl, zero)
+	return tmpl
+}
+
+func loadHTMLEmailTemplate(dir, name string, zero any) *htmltemplate.Template {
+	contents, err := os.ReadFile(filepath.Join(dir, name))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		fmt.Printf("EmailService: failed to read template %s: %v\n", name, err)
+		return nil
+	}
+	tmpl, err := htmltemplate.New(name).Parse(string(contents))
+	if err != nil {
+		fmt.Printf("EmailService: failed to parse template %s: %v\n", name, err)
+		return nil
+	}
+	diagnoseTemplate(name, tmpl, zero)
+	return tmpl
+}
+
+func (s *EmailService) loadTemplates(dir string) {
+	if _, err := os.ReadDir(dir); err != nil {
+		fmt.Printf("EmailService: failed to read template directory %s: %v\n", dir, err)
+		return
+	}
+	verificationZero := verificationTemplateData{}
+	invitationZero := invitationTemplateData{}
+	s.verificationSubjectTemplate = loadTextEmailTemplate(dir, verificationSubjectTemplateFile, verificationZero)
+	s.verificationHTMLTemplate = loadHTMLEmailTemplate(dir, verificationHTMLTemplateFile, verificationZero)
+	s.invitationSubjectTemplate = loadTextEmailTemplate(dir, invitationSubjectTemplateFile, invitationZero)
+	s.invitationHTMLTemplate = loadHTMLEmailTemplate(dir, invitationHTMLTemplateFile, invitationZero)
+}
+
+func renderEmailTemplate(name string, tmpl executableTemplate, data any) (string, bool) {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		fmt.Printf("EmailService: failed to render template %s; using built-in content: %v\n", name, err)
+		return "", false
+	}
+	return buf.String(), true
 }
 
 type smtpAuthClient interface {
@@ -219,9 +328,9 @@ func NewEmailService() *EmailService {
 		fmt.Printf("EmailService: SMTP_TLS=%q not recognized, falling back to starttls\n", smtpTLSMode)
 	}
 
-	var client *resend.Client
+	var client emailSender
 	if apiKey != "" {
-		client = resend.NewClient(apiKey)
+		client = resend.NewClient(apiKey).Emails
 	}
 
 	switch {
@@ -237,7 +346,7 @@ func NewEmailService() *EmailService {
 		fmt.Println("EmailService: DEV mode — codes printed to stdout (set MULTICA_DEV_VERIFICATION_CODE in .env for a fixed local code)")
 	}
 
-	return &EmailService{
+	service := &EmailService{
 		client:          client,
 		fromEmail:       from,
 		smtpHost:        smtpHost,
@@ -248,6 +357,10 @@ func NewEmailService() *EmailService {
 		smtpTLSImplicit: smtpTLSImplicit,
 		smtpEHLOName:    smtpEHLOName,
 	}
+	if templateDir := strings.TrimSpace(os.Getenv("EMAIL_TEMPLATE_DIR")); templateDir != "" {
+		service.loadTemplates(templateDir)
+	}
+	return service
 }
 
 // sendSMTP delivers an HTML email via an SMTP server.
@@ -338,28 +451,46 @@ func (s *EmailService) sendSMTP(to, subject, htmlBody string) error {
 // (6-digit numeric) so no user-controlled text reaches the email body here.
 // Delivery priority: SMTP relay → Resend API → DEV stdout.
 func (s *EmailService) SendVerificationCode(to, code string) error {
+	if s.smtpHost == "" && s.client == nil {
+		fmt.Printf("[DEV] Verification code for %s: %s\n", to, code)
+		return nil
+	}
+
+	expiresInMinutes := strconv.Itoa(int(verificationCodeTTL / time.Minute))
+	subject := "Your Multica verification code"
 	body := fmt.Sprintf(
 		`<div style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
 			<h2>Your verification code</h2>
 			<p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0;">%s</p>
-			<p>This code expires in 10 minutes.</p>
+			<p>This code expires in %s minutes.</p>
 			<p style="color: #666; font-size: 14px;">If you didn't request this code, you can safely ignore this email.</p>
-		</div>`, code)
+		</div>`, code, expiresInMinutes)
+	data := verificationTemplateData{
+		Code:             code,
+		ExpiresInMinutes: expiresInMinutes,
+		AppName:          applicationName,
+	}
+	if s.verificationSubjectTemplate != nil {
+		if rendered, ok := renderEmailTemplate(verificationSubjectTemplateFile, s.verificationSubjectTemplate, data); ok {
+			subject = sanitizeRenderedSubject(rendered)
+		}
+	}
+	if s.verificationHTMLTemplate != nil {
+		if rendered, ok := renderEmailTemplate(verificationHTMLTemplateFile, s.verificationHTMLTemplate, data); ok {
+			body = rendered
+		}
+	}
 
 	if s.smtpHost != "" {
-		return s.sendSMTP(to, "Your Multica verification code", body)
-	}
-	if s.client == nil {
-		fmt.Printf("[DEV] Verification code for %s: %s\n", to, code)
-		return nil
+		return s.sendSMTP(to, subject, body)
 	}
 	params := &resend.SendEmailRequest{
 		From:    s.fromEmail,
 		To:      []string{to},
-		Subject: "Your Multica verification code",
+		Subject: subject,
 		Html:    body,
 	}
-	_, err := s.client.Emails.Send(params)
+	_, err := s.client.Send(params)
 	return err
 }
 
@@ -372,17 +503,44 @@ func (s *EmailService) SendInvitationEmail(to, inviterName, workspaceName, invit
 	}
 	inviteURL := fmt.Sprintf("%s/invite/%s", appURL, invitationID)
 
-	if s.smtpHost != "" {
-		params := buildInvitationParams(s.fromEmail, to, inviterName, workspaceName, inviteURL)
-		return s.sendSMTP(to, params.Subject, params.Html)
-	}
-	if s.client == nil {
+	if s.smtpHost == "" && s.client == nil {
 		fmt.Printf("[DEV] Invitation email to %s: %s invited you to %s — %s\n", to, inviterName, workspaceName, inviteURL)
 		return nil
 	}
-	params := buildInvitationParams(s.fromEmail, to, inviterName, workspaceName, inviteURL)
-	_, err := s.client.Emails.Send(params)
+
+	var params *resend.SendEmailRequest
+	if s.invitationSubjectTemplate == nil && s.invitationHTMLTemplate == nil {
+		params = buildInvitationParams(s.fromEmail, to, inviterName, workspaceName, inviteURL)
+	} else {
+		params = s.buildInvitationParamsFromTemplate(s.fromEmail, to, inviterName, workspaceName, inviteURL, appURL)
+	}
+	if s.smtpHost != "" {
+		return s.sendSMTP(to, params.Subject, params.Html)
+	}
+	_, err := s.client.Send(params)
 	return err
+}
+
+func (s *EmailService) buildInvitationParamsFromTemplate(from, to, inviterName, workspaceName, inviteURL, appURL string) *resend.SendEmailRequest {
+	params := buildInvitationParams(from, to, inviterName, workspaceName, inviteURL)
+	data := invitationTemplateData{
+		InviterName:   inviterName,
+		WorkspaceName: workspaceName,
+		InviteURL:     inviteURL,
+		AppName:       applicationName,
+		AppURL:        appURL,
+	}
+	if s.invitationSubjectTemplate != nil {
+		if rendered, ok := renderEmailTemplate(invitationSubjectTemplateFile, s.invitationSubjectTemplate, data); ok {
+			params.Subject = sanitizeRenderedSubject(rendered)
+		}
+	}
+	if s.invitationHTMLTemplate != nil {
+		if rendered, ok := renderEmailTemplate(invitationHTMLTemplateFile, s.invitationHTMLTemplate, data); ok {
+			params.Html = rendered
+		}
+	}
+	return params
 }
 
 // buildInvitationParams assembles the email request for an invitation.
@@ -431,4 +589,28 @@ func sanitizeSubjectField(s string) string {
 	}
 	runes := []rune(cleaned)
 	return string(runes[:maxSubjectFieldRunes-1]) + "…"
+}
+
+func subjectLine(subject string) int {
+	return len("Subject: " + mime.QEncoding.Encode("utf-8", subject))
+}
+
+func sanitizeRenderedSubject(subject string) string {
+	var b strings.Builder
+	b.Grow(len(subject))
+	for _, r := range subject {
+		if unicode.IsControl(r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+
+	runes := []rune(b.String())
+	if len(runes) > maxRenderedSubjectRunes {
+		runes = runes[:maxRenderedSubjectRunes]
+	}
+	for len(runes) > 0 && subjectLine(string(runes)) > maxSubjectLineOctets {
+		runes = runes[:len(runes)-1]
+	}
+	return string(runes)
 }

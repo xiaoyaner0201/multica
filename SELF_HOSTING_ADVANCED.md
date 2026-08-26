@@ -50,6 +50,23 @@ Use this option when your deployment cannot reach the public internet or you alr
 
 STARTTLS is used automatically when advertised by the server. Port 465 (SMTPS / implicit TLS) is supported and auto-enables implicit TLS; set `SMTP_TLS=implicit` (aliases `smtps`, `ssl`) to force it on a non-standard port.
 
+#### Custom email templates
+
+Set `EMAIL_TEMPLATE_DIR` to a directory mounted in the backend container. Each file is optional and overrides only its corresponding built-in component:
+
+| File | Available fields |
+|---|---|
+| `verification_code.subject.tmpl` | `Code`, `ExpiresInMinutes`, `AppName` |
+| `verification_code.html.tmpl` | `Code`, `ExpiresInMinutes`, `AppName` |
+| `invitation.subject.tmpl` | `InviterName`, `WorkspaceName`, `InviteURL`, `AppName`, `AppURL` |
+| `invitation.html.tmpl` | `InviterName`, `WorkspaceName`, `InviteURL`, `AppName`, `AppURL` |
+
+Subject files use Go `text/template`; HTML files use `html/template` with contextual escaping. `{{.AppName}}` always renders as `Multica`; write your own brand as literal template text. Do not put `{{.Code}}` in the verification subject: subjects can appear in mail-server logs and phone lock-screen previews.
+
+Rendered subjects are limited by characters and encoded transport size. Pure CJK text fits about 91 characters, CJK mixed with spaces or ASCII can fit longer (about 99 in a regularly spaced example), pure emoji fits about 67, and pure ASCII can use the full 200-character limit.
+
+Templates load when the backend starts, so restart it after changes. Missing files silently use built-in content. An unreadable directory, invalid template, or rendering failure logs a warning and falls back only that component; other valid templates remain active. Add the volume mount yourself, for example with a Compose override, and set `EMAIL_TEMPLATE_DIR` to the in-container path.
+
 > **Note:** If neither Resend nor SMTP is configured, generated verification codes are printed to backend logs — copy them from there to log in. A fixed local testing code (e.g. `888888`) is **opt-in only**: set `MULTICA_DEV_VERIFICATION_CODE=888888` in `.env` and keep `APP_ENV` non-production. The Docker self-host stack pins `APP_ENV=production`, so the shortcut is ignored there. **Never enable a fixed code on a publicly reachable instance.**
 
 ### Google OAuth (Optional)

@@ -61,6 +61,27 @@ SMTP_EHLO_NAME=mail.example.com
 
 启动日志会说明当前使用的是 `Resend API`、`SMTP relay` 还是 `DEV mode`。
 
+### 自定义邮件模板
+
+把 `EMAIL_TEMPLATE_DIR` 指向挂载到 API 容器中的目录。以下文件均可独立选用：
+
+| 文件 | 可用字段 |
+|---|---|
+| `verification_code.subject.tmpl` | `Code`、`ExpiresInMinutes`、`AppName` |
+| `verification_code.html.tmpl` | `Code`、`ExpiresInMinutes`、`AppName` |
+| `invitation.subject.tmpl` | `InviterName`、`WorkspaceName`、`InviteURL`、`AppName`、`AppURL` |
+| `invitation.html.tmpl` | `InviterName`、`WorkspaceName`、`InviteURL`、`AppName`、`AppURL` |
+
+主题文件使用 Go `text/template`；HTML 文件使用 `html/template`，会根据上下文转义字段值。`{{.AppName}}` 始终渲染为 `Multica`。如需使用自有品牌，请在模板中直接写字面量。
+
+<Callout type="warning">
+不要在 `verification_code.subject.tmpl` 中放入 `{{.Code}}`。主题可能出现在邮件服务器日志和手机锁屏预览中；HTML 正文没有这些暴露点。
+</Callout>
+
+渲染后的主题同时受字符数和编码后传输大小限制。纯中日韩文本约可使用 91 字；混入空格或 ASCII 时可以更长（规律插入空格的示例约 99 字）；纯 Emoji 约 67 字；纯 ASCII 可用满 200 字上限。
+
+模板在 API 启动时加载，修改文件后请重启。缺失的文件会静默使用对应的内置内容。目录不可读、模板无效或渲染失败时会记录警告，并回退到对应的内置内容；其他有效模板仍会生效。
+
 ## 本地固定验证码
 
 本地自动化测试可以设置固定验证码：
