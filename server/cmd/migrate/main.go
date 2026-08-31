@@ -195,9 +195,7 @@ var concurrentIndexCleanups = map[string]string{
 	"281_agent_workspace_id_keyset_index":                       "idx_agent_workspace_id_keyset",
 	"282_issue_workspace_id_keyset_index":                       "idx_issue_workspace_id_keyset",
 	"283_agent_runtime_workspace_id_keyset_index":               "idx_agent_runtime_workspace_id_keyset",
-	"286_user_oidc_identity_subject_index":                      "idx_user_oidc_identity_issuer_subject",
 	"286_plugin_identity_key_index":                             "idx_plugin_identity_key",
-	"287_user_oidc_identity_user_index":                         "idx_user_oidc_identity_user_id",
 	"287_plugin_release_version_index":                          "idx_plugin_release_version",
 	"288_plugin_installation_workspace_plugin_index":            "idx_plugin_installation_workspace_plugin_active",
 	"289_plugin_contribution_key_index":                         "idx_plugin_contribution_release_key",
@@ -277,6 +275,8 @@ var concurrentIndexCleanups = map[string]string{
 	"439_agent_runtime_offline_last_seen_index":                 "idx_agent_runtime_offline_last_seen",
 	"440_github_pr_head_sha_index":                              "idx_github_pull_request_head_sha",
 	"443_issue_project_status_index":                            "idx_issue_project_status",
+	"445_user_oidc_identity_subject_index":                      "idx_user_oidc_identity_issuer_subject",
+	"446_user_oidc_identity_user_index":                         "idx_user_oidc_identity_user_id",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
