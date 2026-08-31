@@ -1,7 +1,6 @@
 /**
  * Mobile auth store — Zustand. Logic mirrors packages/core/auth/store.ts:
- *   - Token written only after successful code verification or a validated
- *     browser handoff token
+ *   - Token written ONLY on successful verifyCode
  *   - 401 → clear token; non-401 (5xx / network blip) → preserve token so
  *     the next launch can retry
  *   - logout = clear token + clear in-memory user + setToken(null)
@@ -22,14 +21,13 @@ interface AuthState {
   initialize: () => Promise<void>;
   sendCode: (email: string) => Promise<void>;
   verifyCode: (email: string, code: string) => Promise<User>;
-  loginWithToken: (token: string) => Promise<User>;
   logout: () => Promise<void>;
   /** Overwrite the in-memory user — call after PATCH /api/me so name/avatar
    *  edits land without a refetch. Server response is the source of truth. */
   setUser: (user: User) => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: true,
 
@@ -69,21 +67,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     api.setToken(token);
     set({ user });
     return user;
-  },
-
-  loginWithToken: async (token) => {
-    const previousToken = await getToken();
-    api.setToken(token);
-    try {
-      const user = await api.getMe();
-      await setToken(token);
-      set({ user, isLoading: false });
-      return user;
-    } catch (err) {
-      api.setToken(previousToken);
-      if (!get().user) set({ isLoading: false });
-      throw err;
-    }
   },
 
   logout: async () => {

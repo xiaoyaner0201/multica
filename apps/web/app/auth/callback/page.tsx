@@ -126,11 +126,6 @@ function CallbackContent() {
             );
             return;
           }
-          if (destination.isAppHandoff) {
-            setHandoffToken(token);
-            window.location.href = `multica://auth/callback?token=${encodeURIComponent(token)}`;
-            return;
-          }
           return completeWebLogin(user, destination.nextUrl);
         })
         .catch((err) => {

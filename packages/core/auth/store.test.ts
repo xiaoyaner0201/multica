@@ -86,6 +86,8 @@ describe("authStore.loginWithOIDC", () => {
     expect(storage.snapshot().multica_token).toBe("oidc-jwt");
     expect(api.setToken).toHaveBeenCalledWith("oidc-jwt");
     expect(store.getState().user).toEqual(fakeUser);
+    expect(store.getState().isLoading).toBe(false);
+    expect(store.getState().status).toBe("authenticated");
     expect(result.appState).toBe("next:/invite/123");
   });
 });

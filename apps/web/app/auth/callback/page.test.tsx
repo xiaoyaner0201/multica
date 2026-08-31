@@ -165,12 +165,12 @@ describe("CallbackPage", () => {
     });
   });
 
-  it("hands an OIDC token back to the mobile app", async () => {
+  it("does not hand an OIDC session token to a native custom scheme", async () => {
     mockSearchParams.set("state", "oidc.server-generated-state");
     mockLoginWithOIDC.mockResolvedValue({
       user: makeUser(),
-      token: "mobile-oidc-token",
-      appState: "platform:mobile",
+      token: "oidc-session-token",
+      appState: "platform:mobile,next:%2Finvite%2Fsafe",
     });
 
     const hrefSetter = vi.fn();
@@ -184,11 +184,9 @@ describe("CallbackPage", () => {
       render(<CallbackPage />);
 
       await waitFor(() => {
-        expect(hrefSetter).toHaveBeenCalledWith(
-          "multica://auth/callback?token=mobile-oidc-token",
-        );
+        expect(mockPush).toHaveBeenCalledWith("/invite/safe");
       });
-      expect(mockPush).not.toHaveBeenCalled();
+      expect(hrefSetter).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(window, "location", {
         configurable: true,

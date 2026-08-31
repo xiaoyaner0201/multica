@@ -70,8 +70,8 @@ function LoginPageContent() {
   const cliState = searchParams.get("cli_state") || "";
   const platform = searchParams.get("platform");
   const isDesktopHandoff = platform === "desktop" && !cliCallbackRaw;
-  const isMobileHandoff = platform === "mobile" && !cliCallbackRaw;
-  const isAppHandoff = isDesktopHandoff || isMobileHandoff;
+  const isNativeHandoff =
+    (platform === "desktop" || platform === "mobile") && !cliCallbackRaw;
   // `next` carries a protected URL the user was originally headed to
   // (e.g. /invite/{id}). With URL-driven workspaces there is no legacy
   // "/issues" default — if `next` is absent we decide after login based on
@@ -79,8 +79,8 @@ function LoginPageContent() {
   // cannot bounce the user off-origin after a successful login.
   const nextUrl = sanitizeNextUrl(searchParams.get("next"));
 
-  const [handoffToken, setHandoffToken] = useState<string | null>(null);
-  const [handoffError, setHandoffError] = useState("");
+  const [desktopToken, setDesktopToken] = useState<string | null>(null);
+  const [desktopError, setDesktopError] = useState("");
   const hasOnboarded = useHasOnboarded();
 
   // Latched once auth has been observed settled as logged-out on this page.
@@ -98,25 +98,21 @@ function LoginPageContent() {
       return;
     }
     if (cliCallbackRaw) return;
-    if (isAppHandoff) {
-      // A native app opened the browser for login but the web session is already
+    if (isDesktopHandoff) {
+      // Desktop opened the browser for login but the web session is already
       // authenticated — mint a bearer token from the cookie session and hand
       // it off via deep link instead of silently redirecting to the workspace.
       api
         .issueCliToken()
         .then(({ token }) => {
-          setHandoffToken(token);
+          setDesktopToken(token);
           window.location.href = `multica://auth/callback?token=${encodeURIComponent(token)}`;
         })
         .catch((err) => {
-          setHandoffError(
+          setDesktopError(
             err instanceof Error
               ? err.message
-              : t(($) =>
-                  isMobileHandoff
-                    ? $.web.mobile_handoff.prepare_failed
-                    : $.web.desktop_handoff.prepare_failed,
-                ),
+              : t(($) => $.web.desktop_handoff.prepare_failed),
           );
         });
       return;
@@ -141,10 +137,9 @@ function LoginPageContent() {
       .catch(() => [] as Workspace[])
       .then((list) => resolveLoggedInDestination(qc, hasOnboarded, list))
       .then((dest) => router.replace(dest));
-  }, [isLoading, user, router, nextUrl, cliCallbackRaw, isAppHandoff, isMobileHandoff, hasOnboarded, qc, t]);
+  }, [isLoading, user, router, nextUrl, cliCallbackRaw, isDesktopHandoff, hasOnboarded, qc]);
 
   const handleSuccess = async () => {
-    if (isAppHandoff) return;
     // Read the latest user snapshot directly — the closure's `hasOnboarded`
     // was captured before login completed and would be stale here.
     const currentUser = useAuthStore.getState().user;
@@ -162,15 +157,22 @@ function LoginPageContent() {
   // CLI callback/state must survive the Google OAuth round-trip so the
   // post-login callback page can redirect the JWT back to the CLI's local
   // HTTP listener (critical for headless / WSL2 environments).
-  const authAppState = [
-    platform === "desktop"
-      ? "platform:desktop"
-      : platform === "mobile"
-        ? "platform:mobile"
-        : "",
-    // Encode every value: the parts are joined with "," and the callback
-    // splits on it, so a raw comma in `next` (e.g. /board?f=a,b) would
-    // otherwise truncate the redirect target. Matches the cli_* parts below.
+  const googleState = [
+    platform === "desktop" ? "platform:desktop" : "",
+    nextUrl ? `next:${nextUrl}` : "",
+    cliCallbackRaw && validateCliCallback(cliCallbackRaw)
+      ? `cli_callback:${encodeURIComponent(cliCallbackRaw)}`
+      : "",
+    cliState ? `cli_state:${encodeURIComponent(cliState)}` : "",
+  ]
+    .filter(Boolean)
+    .join(",") || undefined;
+
+  // OIDC is web/CLI-only until native handoff uses a claimed universal link
+  // and a short-lived, verifier-bound exchange code. Never include a native
+  // platform marker in OIDC app_state: the callback must not place a reusable
+  // Multica session token in a custom-scheme URL.
+  const oidcState = [
     nextUrl ? `next:${encodeURIComponent(nextUrl)}` : "",
     cliCallbackRaw && validateCliCallback(cliCallbackRaw)
       ? `cli_callback:${encodeURIComponent(cliCallbackRaw)}`
@@ -183,20 +185,16 @@ function LoginPageContent() {
   // While the desktop handoff is in progress (or has produced a token/error),
   // render a dedicated screen instead of flashing the login form or redirecting
   // away to a workspace page.
-  if (isAppHandoff && user) {
-    if (handoffError) {
+  if (isDesktopHandoff && user) {
+    if (desktopError) {
       return (
         <div className="flex min-h-screen items-center justify-center">
           <Card className="w-full max-w-sm">
             <CardHeader className="text-center">
               <CardTitle className="text-display-sm">
-                {t(($) =>
-                  isMobileHandoff
-                    ? $.web.mobile_handoff.failed_title
-                    : $.web.desktop_handoff.failed_title,
-                )}
+                {t(($) => $.web.desktop_handoff.failed_title)}
               </CardTitle>
-              <CardDescription>{handoffError}</CardDescription>
+              <CardDescription>{desktopError}</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -207,39 +205,23 @@ function LoginPageContent() {
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle className="text-display-sm">
-              {t(($) =>
-                isMobileHandoff
-                  ? $.web.mobile_handoff.opening_title
-                  : $.web.desktop_handoff.opening_title,
-              )}
+              {t(($) => $.web.desktop_handoff.opening_title)}
             </CardTitle>
             <CardDescription>
-              {handoffToken
-                ? t(($) =>
-                    isMobileHandoff
-                      ? $.web.mobile_handoff.opening_description
-                      : $.web.desktop_handoff.opening_description,
-                  )
-                : t(($) =>
-                    isMobileHandoff
-                      ? $.web.mobile_handoff.preparing
-                      : $.web.desktop_handoff.preparing,
-                  )}
+              {desktopToken
+                ? t(($) => $.web.desktop_handoff.opening_description)
+                : t(($) => $.web.desktop_handoff.preparing)}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
-            {handoffToken ? (
+            {desktopToken ? (
               <Button
                 variant="outline"
                 onClick={() => {
-                  window.location.href = `multica://auth/callback?token=${encodeURIComponent(handoffToken)}`;
+                  window.location.href = `multica://auth/callback?token=${encodeURIComponent(desktopToken)}`;
                 }}
               >
-                {t(($) =>
-                  isMobileHandoff
-                    ? $.web.mobile_handoff.open_button
-                    : $.web.desktop_handoff.open_button,
-                )}
+                {t(($) => $.web.desktop_handoff.open_button)}
               </Button>
             ) : (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -258,13 +240,13 @@ function LoginPageContent() {
           ? {
               clientId: googleClientId,
               redirectUri: `${window.location.origin}/auth/callback`,
-              state: authAppState,
+              state: googleState,
             }
           : undefined
       }
       oidc={
-        oidcProviderName
-          ? { providerName: oidcProviderName, appState: authAppState }
+        oidcProviderName && !isNativeHandoff
+          ? { providerName: oidcProviderName, appState: oidcState }
           : undefined
       }
       cliCallback={

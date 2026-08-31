@@ -56,10 +56,13 @@ type oidcLoginResponse struct {
 }
 
 type oidcClaims struct {
-	Email         string `json:"email"`
-	EmailVerified bool   `json:"email_verified"`
-	Name          string `json:"name"`
-	Picture       string `json:"picture"`
+	Email                string `json:"email"`
+	EmailVerified        bool   `json:"email_verified"`
+	Name                 string `json:"name"`
+	Picture              string `json:"picture"`
+	EmailPresent         bool   `json:"-"`
+	EmailVerifiedPresent bool   `json:"-"`
+	GroupsPresent        bool   `json:"-"`
 	// Groups is populated exclusively from the raw-claims pass in
 	// readOIDCClaims, which accepts both a string and an array of strings.
 	// Excluded from the struct unmarshal (`json:"-"`) so a scalar `groups`
@@ -125,7 +128,10 @@ func readOIDCClaims(read func(any) error, claims *oidcClaims, groupsClaim string
 	if err := read(&raw); err != nil {
 		return err
 	}
+	_, claims.EmailPresent = raw["email"]
+	_, claims.EmailVerifiedPresent = raw["email_verified"]
 	value, ok := raw[groupsClaim]
+	claims.GroupsPresent = ok
 	if !ok {
 		return nil
 	}
@@ -141,13 +147,55 @@ func readOIDCClaims(read func(any) error, claims *oidcClaims, groupsClaim string
 	return nil
 }
 
+func mergeOIDCClaims(idTokenClaims, userInfoClaims oidcClaims) (oidcClaims, error) {
+	merged := idTokenClaims
+	if userInfoClaims.Name != "" {
+		merged.Name = userInfoClaims.Name
+	}
+	if userInfoClaims.Picture != "" {
+		merged.Picture = userInfoClaims.Picture
+	}
+	if userInfoClaims.GroupsPresent {
+		merged.Groups = userInfoClaims.Groups
+		merged.GroupsPresent = true
+	}
+	if !userInfoClaims.EmailPresent {
+		return merged, nil
+	}
+
+	idTokenEmail := strings.ToLower(strings.TrimSpace(idTokenClaims.Email))
+	userInfoEmail := strings.ToLower(strings.TrimSpace(userInfoClaims.Email))
+	if idTokenClaims.EmailPresent && idTokenEmail != "" && idTokenEmail != userInfoEmail {
+		return oidcClaims{}, errors.New("OIDC ID token and userinfo email claims do not match")
+	}
+
+	merged.Email = userInfoEmail
+	merged.EmailPresent = true
+	switch {
+	case userInfoClaims.EmailVerifiedPresent:
+		merged.EmailVerified = userInfoClaims.EmailVerified
+		merged.EmailVerifiedPresent = true
+	case idTokenClaims.EmailPresent && idTokenClaims.EmailVerifiedPresent && idTokenEmail == userInfoEmail:
+		// The verification claim still applies because both responses name the
+		// exact same normalized email address.
+		merged.EmailVerified = idTokenClaims.EmailVerified
+		merged.EmailVerifiedPresent = true
+	default:
+		merged.EmailVerified = false
+		merged.EmailVerifiedPresent = false
+	}
+	return merged, nil
+}
+
 func oidcGroupAllowed(userGroups, allowedGroups []string) bool {
 	if len(allowedGroups) == 0 {
 		return true
 	}
 	for _, allowed := range allowedGroups {
-		if contains(userGroups, allowed) {
-			return true
+		for _, userGroup := range userGroups {
+			if userGroup == allowed {
+				return true
+			}
 		}
 	}
 	return false
@@ -278,19 +326,28 @@ func (h *Handler) OIDCLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid OIDC nonce")
 		return
 	}
-	claims := oidcClaims{}
-	if err := readOIDCClaims(idToken.Claims, &claims, cfg.GroupsClaim); err != nil {
+	idTokenClaims := oidcClaims{}
+	if err := readOIDCClaims(idToken.Claims, &idTokenClaims, cfg.GroupsClaim); err != nil {
 		writeError(w, http.StatusBadGateway, "failed to parse OIDC claims")
 		return
 	}
+	claims := idTokenClaims
 	userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
 	if err == nil {
 		if userInfo.Subject != idToken.Subject {
 			writeError(w, http.StatusUnauthorized, "OIDC userinfo subject does not match ID token")
 			return
 		}
-		if err := readOIDCClaims(userInfo.Claims, &claims, cfg.GroupsClaim); err != nil {
+		userInfoClaims := oidcClaims{}
+		if err := readOIDCClaims(userInfo.Claims, &userInfoClaims, cfg.GroupsClaim); err != nil {
 			slog.Warn("failed to parse OIDC userinfo claims", append(logger.RequestAttrs(r), "error", err)...)
+		} else {
+			claims, err = mergeOIDCClaims(idTokenClaims, userInfoClaims)
+			if err != nil {
+				slog.Warn("OIDC ID token and userinfo claims conflict", append(logger.RequestAttrs(r), "error", err)...)
+				writeError(w, http.StatusUnauthorized, "OIDC identity claims do not agree")
+				return
+			}
 		}
 	}
 	claims.Email = strings.ToLower(strings.TrimSpace(claims.Email))

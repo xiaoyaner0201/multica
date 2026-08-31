@@ -120,6 +120,9 @@ func TestReadOIDCClaimsAndGroupAllowlist(t *testing.T) {
 	if oidcGroupAllowed(claims.Groups, []string{"finance"}) {
 		t.Fatal("expected unmatched group to be rejected")
 	}
+	if oidcGroupAllowed([]string{"Platform"}, []string{"platform"}) {
+		t.Fatal("expected case-only group variant to be rejected")
+	}
 	if !oidcGroupAllowed(nil, nil) {
 		t.Fatal("expected empty allowlist to allow access")
 	}
@@ -146,6 +149,66 @@ func TestReadOIDCClaimsAcceptsScalarGroups(t *testing.T) {
 	}
 	if !oidcGroupAllowed(claims.Groups, []string{"platform"}) {
 		t.Fatal("expected scalar group to satisfy the allowlist")
+	}
+}
+
+func TestMergeOIDCClaimsPreservesVerificationOnlyForTheSameEmail(t *testing.T) {
+	idTokenClaims := oidcClaims{
+		Email:                "User@Example.com",
+		EmailVerified:        true,
+		EmailPresent:         true,
+		EmailVerifiedPresent: true,
+		Groups:               []string{"platform"},
+		GroupsPresent:        true,
+	}
+	userInfoClaims := oidcClaims{
+		Email:         "user@example.com",
+		EmailPresent:  true,
+		Name:          "Example User",
+		Groups:        []string{"developers"},
+		GroupsPresent: true,
+	}
+
+	merged, err := mergeOIDCClaims(idTokenClaims, userInfoClaims)
+	if err != nil {
+		t.Fatalf("mergeOIDCClaims: %v", err)
+	}
+	if merged.Email != "user@example.com" || !merged.EmailVerified || !merged.EmailVerifiedPresent {
+		t.Fatalf("same-email verification provenance was not preserved: %#v", merged)
+	}
+	if got := strings.Join(merged.Groups, ","); got != "developers" {
+		t.Fatalf("userinfo groups should replace ID-token groups: got %q", got)
+	}
+}
+
+func TestMergeOIDCClaimsRejectsMismatchedEmails(t *testing.T) {
+	_, err := mergeOIDCClaims(
+		oidcClaims{
+			Email:                "verified@example.com",
+			EmailVerified:        true,
+			EmailPresent:         true,
+			EmailVerifiedPresent: true,
+		},
+		oidcClaims{
+			Email:        "victim@example.com",
+			EmailPresent: true,
+		},
+	)
+	if err == nil {
+		t.Fatal("mergeOIDCClaims accepted conflicting ID-token and userinfo emails")
+	}
+}
+
+func TestMergeOIDCClaimsDoesNotInventVerification(t *testing.T) {
+	merged, err := mergeOIDCClaims(
+		oidcClaims{},
+		oidcClaims{Email: "user@example.com", EmailPresent: true},
+	)
+	if err != nil {
+		t.Fatalf("mergeOIDCClaims: %v", err)
+	}
+	if merged.EmailVerified || merged.EmailVerifiedPresent {
+		t.Fatalf("userinfo email without email_verified became verified: %#v", merged)
 	}
 }
 

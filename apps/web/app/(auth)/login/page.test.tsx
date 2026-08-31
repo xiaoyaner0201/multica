@@ -5,6 +5,7 @@ import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "@multica/views/locales/en/common.json";
 import enAuth from "@multica/views/locales/en/auth.json";
 import enSettings from "@multica/views/locales/en/settings.json";
+import { configStore } from "@multica/core/config";
 import type { ReactNode } from "react";
 
 const TEST_RESOURCES = {
@@ -95,6 +96,7 @@ describe("LoginPage", () => {
     searchParamsState.params = new URLSearchParams();
     authStateRef.state.user = null;
     authStateRef.state.isLoading = false;
+    configStore.getState().setAuthConfig({ allowSignup: true });
     mockListWorkspaces.mockResolvedValue([]);
     mockListMyInvitations.mockResolvedValue([]);
   });
@@ -102,6 +104,25 @@ describe("LoginPage", () => {
   // Shared LoginPage behavior is canonical in
   // packages/views/auth/login-page.test.tsx. This wrapper suite only owns web
   // platform handoff and redirect behavior.
+
+  it("shows OIDC on the web but hides it for native handoff", () => {
+    configStore.getState().setAuthConfig({
+      allowSignup: true,
+      oidcProviderName: "Company SSO",
+    });
+
+    const { unmount } = render(<LoginPage />, { wrapper: createWrapper() });
+    expect(
+      screen.getByRole("button", { name: /continue with company sso/i }),
+    ).toBeInTheDocument();
+    unmount();
+
+    searchParamsState.params = new URLSearchParams({ platform: "desktop" });
+    render(<LoginPage />, { wrapper: createWrapper() });
+    expect(
+      screen.queryByRole("button", { name: /continue with company sso/i }),
+    ).not.toBeInTheDocument();
+  });
 
   // Regression: MUL-1080 — if the user is already authenticated on the web
   // and the Desktop app redirects them to /login?platform=desktop, the web
@@ -134,37 +155,6 @@ describe("LoginPage", () => {
       });
       expect(
         await screen.findByRole("button", { name: "Open Multica Desktop" }),
-      ).toBeInTheDocument();
-    } finally {
-      Object.defineProperty(window, "location", {
-        configurable: true,
-        value: originalLocation,
-      });
-    }
-  });
-
-  it("mints a token and deep-links to mobile when already logged in with platform=mobile", async () => {
-    searchParamsState.params = new URLSearchParams({ platform: "mobile" });
-    authStateRef.state.user = { id: "u1", email: "test@multica.ai" };
-    mockIssueCliToken.mockResolvedValue({ token: "mobile-handoff-jwt" });
-
-    const hrefSetter = vi.fn();
-    const originalLocation = window.location;
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...originalLocation, set href(value: string) { hrefSetter(value); } },
-    });
-
-    try {
-      render(<LoginPage />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(hrefSetter).toHaveBeenCalledWith(
-          "multica://auth/callback?token=mobile-handoff-jwt",
-        );
-      });
-      expect(
-        await screen.findByRole("button", { name: "Open Multica" }),
       ).toBeInTheDocument();
     } finally {
       Object.defineProperty(window, "location", {
