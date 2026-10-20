@@ -1,0 +1,22 @@
+{
+  "upstream_issue": "https://github.com/multica-ai/multica/issues/9359",
+  "description": "Original proposal illustrations: stable nameplates survive visual redesign; passive markers do not transmit data.",
+  "images": [
+    {
+      "language": "en",
+      "sha256": "55497f2b3f3da6316dc916c35562cf3bf3c289a589e339a198add147dc24a9df",
+      "dimensions": [
+        1536,
+        1024
+      ]
+    },
+    {
+      "language": "zh",
+      "sha256": "32d4c69289d7d52779441be971507a58fdb1fb0581ff483b73ffba9d67902249",
+      "dimensions": [
+        1536,
+        1024
+      ]
+    }
+  ]
+}
