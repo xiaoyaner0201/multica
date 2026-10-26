@@ -451,6 +451,13 @@ func hasDaemonTaskContextMarker() bool {
 // returns the path of the first readable daemon-task marker whose managed_by
 // matches, or "" when none is found.
 func daemonTaskContextMarkerPath() string {
+	// A resident agent owner (e.g. a Hermes gateway serving many task workdirs)
+	// runs tools inside task workdirs without being a daemon task itself; it
+	// authenticates with its own workspace PAT and opts out of marker detection.
+	// Explicit task identity env (MULTICA_TASK_ID/AGENT_ID) still wins.
+	if os.Getenv("MULTICA_RESIDENT_OWNER") == "1" {
+		return ""
+	}
 	dir, err := os.Getwd()
 	if err != nil {
 		return ""
