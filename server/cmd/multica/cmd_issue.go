@@ -2545,6 +2545,10 @@ func runIssueCommentAdd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("resolve issue: %w", err)
 	}
 	issueID := issueRef.ID
+	if own := residentTaskIssueID(); own != "" && own == issueID {
+		return fmt.Errorf("do not comment on the issue you are working on: your final reply is posted to it automatically as the agent. " +
+			"Put the result in your final answer instead (a CLI comment here is authored by the workspace member and would re-trigger this agent)")
+	}
 
 	// Validate and read ALL attachments before uploading any. URLs are skipped
 	// with a warning — `--attachment` only accepts local file paths. Reading

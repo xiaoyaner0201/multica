@@ -489,6 +489,37 @@ func daemonTaskContextMarkerPath() string {
 	}
 }
 
+// residentTaskIssueID returns the issue_id of the daemon task marker above the
+// current directory when running under a resident owner (MULTICA_RESIDENT_OWNER=1),
+// or "" otherwise. The resident owner authenticates as a workspace member, so a
+// comment it posts on the task's own issue would re-trigger the assigned agent.
+func residentTaskIssueID() string {
+	if os.Getenv("MULTICA_RESIDENT_OWNER") != "1" {
+		return ""
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		data, err := os.ReadFile(filepath.Join(dir, execenv.TaskContextMarkerRelPath))
+		if err == nil {
+			var marker struct {
+				ManagedBy string `json:"managed_by"`
+				IssueID   string `json:"issue_id"`
+			}
+			if json.Unmarshal(data, &marker) == nil && marker.ManagedBy == execenv.TaskContextMarkerManagedBy {
+				return marker.IssueID
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
 func resolveWorkspaceID(cmd *cobra.Command) string {
 	val := cli.FlagOrEnv(cmd, "workspace-id", "MULTICA_WORKSPACE_ID", "")
 	if val != "" {
