@@ -6779,6 +6779,14 @@ func sessionHomeReachable(provider string, env *execenv.Environment, envReused b
 	if provider != "hermes" {
 		return true
 	}
+	// Resident gateway: `hermes acp` is only a viewer and every transcript lives
+	// in the resident owner's own state.db, never in the per-conversation store
+	// this overlay mounts. That store is therefore always empty and must not veto
+	// the resume; a session the owner no longer holds is still cleared by the
+	// backend's "resumed session not found" path.
+	if os.Getenv("MULTICA_HERMES_RESIDENT_GATEWAY") == "1" {
+		return true
+	}
 	if env.HermesSessionStore != "" {
 		return env.HermesSessionHistoryPresent
 	}
