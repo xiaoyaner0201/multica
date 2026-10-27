@@ -8621,6 +8621,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		agentCustomEnv = task.Agent.CustomEnv
 	}
 	layerCustomEnvAndHermesHome(agentEnv, agentCustomEnv, env.HermesHome, d.logger)
+	// Requester identity is daemon-owned: layered after custom_env so an Agent
+	// cannot override who its commits are attributed to.
+	if rerr := writeRequesterContext(env.RootDir, task, agentEnv); rerr != nil {
+		taskLog.Warn("requester context: write failed; commits cannot be attributed", "error", rerr)
+	}
 	if provider == "reasonix" {
 		reasonixStateHome, err := prepareReasonixTaskStateHome(d.cfg.Profile, task.RuntimeID, task.AgentID)
 		if err != nil {
