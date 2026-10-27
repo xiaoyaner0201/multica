@@ -317,3 +317,64 @@ func TestRunAttachmentDownloadRequiresDownloadURL(t *testing.T) {
 		t.Fatalf("runAttachmentDownload error = %v, want missing download URL", err)
 	}
 }
+
+func TestRunAttachmentUploadResidentOwnerUsesTaskContextFile(t *testing.T) {
+	var gotTaskID, gotAuth, gotTaskHeader string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(1 << 20); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		gotTaskID = r.FormValue("task_id")
+		gotAuth = r.Header.Get("Authorization")
+		gotTaskHeader = r.Header.Get("X-Task-ID")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"att-1","content_type":"image/png","markdown_url":"https://x/a.png"}`))
+	}))
+	defer srv.Close()
+	setCLITestServerEnv(t, srv.URL)
+	t.Setenv("MULTICA_TOKEN", "mul_member-pat")
+	t.Setenv("MULTICA_TASK_ID", "")
+	t.Setenv("MULTICA_AGENT_ID", "")
+	t.Setenv("MULTICA_RESIDENT_OWNER", "1")
+
+	root := t.TempDir()
+	work := filepath.Join(root, "workdir", "sub")
+	if err := os.MkdirAll(work, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ctx := `{"task_id":"task-r","agent_id":"agent-r","workspace_id":"ws-1","token":"mat_task-token"}`
+	if err := os.WriteFile(filepath.Join(root, residentTaskContextFile), []byte(ctx), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	img := filepath.Join(work, "cat.png")
+	if err := os.WriteFile(img, []byte("\x89PNG\r\n\x1a\nbytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(work)
+
+	if _, err := captureStdout(t, func() error { return runAttachmentUpload(newAttachmentUploadTestCmd(), []string{img}) }); err != nil {
+		t.Fatalf("runAttachmentUpload: %v", err)
+	}
+	if gotTaskID != "task-r" || gotTaskHeader != "task-r" || gotAuth != "Bearer mat_task-token" {
+		t.Fatalf("task_id=%q X-Task-ID=%q auth=%q", gotTaskID, gotTaskHeader, gotAuth)
+	}
+}
+
+func TestRunAttachmentUploadIgnoresContextFileWithoutResidentOwner(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Fatalf("must not upload")
+	}))
+	defer srv.Close()
+	setCLITestServerEnv(t, srv.URL)
+	t.Setenv("MULTICA_TOKEN", "mul_member-pat")
+	t.Setenv("MULTICA_TASK_ID", "")
+	t.Setenv("MULTICA_RESIDENT_OWNER", "")
+	root := t.TempDir()
+	os.WriteFile(filepath.Join(root, residentTaskContextFile), []byte(`{"task_id":"t","token":"mat_x"}`), 0o600)
+	img := filepath.Join(root, "cat.png")
+	os.WriteFile(img, []byte("x"), 0o644)
+	t.Chdir(root)
+	if err := runAttachmentUpload(newAttachmentUploadTestCmd(), []string{img}); err == nil || !strings.Contains(err.Error(), "no chat task in context") {
+		t.Fatalf("err = %v, want no-chat-task", err)
+	}
+}

@@ -70,6 +70,22 @@ func runAttachmentUpload(cmd *cobra.Command, args []string) error {
 	if taskID == "" {
 		taskID = client.TaskID
 	}
+	// Resident owner (one long-lived gateway serving many tasks): it has no
+	// per-task env, so use the task's own credential from the daemon-written
+	// context file above cwd. The server only accepts task_id uploads from that
+	// task's mat_ token, so the member PAT could never do this.
+	if taskID == "" {
+		if rc := residentTaskCredentialFromCwd(); rc != nil {
+			wsID := rc.WorkspaceID
+			if wsID == "" {
+				wsID = client.WorkspaceID
+			}
+			client = cli.NewAPIClient(client.BaseURL, wsID, rc.Token)
+			client.AgentID = rc.AgentID
+			client.TaskID = rc.TaskID
+			taskID = rc.TaskID
+		}
+	}
 	if taskID == "" {
 		return fmt.Errorf("no chat task in context: run inside a chat task (MULTICA_TASK_ID set) or pass --task <id>")
 	}

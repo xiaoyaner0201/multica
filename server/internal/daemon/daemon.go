@@ -8539,6 +8539,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		return TaskResult{}, err
 	}
 	agentEnv := taskMulticaEnvironment(task, provider, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir)
+	if cleanupResident, rerr := writeResidentTaskContext(env.RootDir, provider, task, agentToken); rerr != nil {
+		taskLog.Warn("resident gateway: write task context failed; attachment upload will be unavailable", "error", rerr)
+	} else {
+		defer cleanupResident()
+	}
 	if checkoutMode := repoCheckoutModeFor(provider, runtime.GOOS); checkoutMode != "" {
 		agentEnv[repoCheckoutModeEnv] = checkoutMode
 	}
