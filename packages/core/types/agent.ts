@@ -680,6 +680,14 @@ export interface Agent {
    * account defaults remain authoritative.
    */
   service_tier?: string;
+  /**
+   * How many times in a row a run that failed with a model-provider
+   * rate-limit/capacity or server error is retried (0 = off, at most 20).
+   * Older servers omit it.
+   */
+  provider_retry_max?: number;
+  /** Seconds to wait before each provider retry (30-86400). */
+  provider_retry_interval_seconds?: number;
   owner_id: string | null;
   skills: AgentSkillSummary[];
   /** Runtime-local skills this agent must not inherit. Older servers omit it. */
@@ -757,6 +765,10 @@ export interface CreateAgentRequest {
   thinking_level?: string;
   /** Optional Codex service-tier catalog ID. See `Agent.service_tier`. */
   service_tier?: string;
+  /** See `Agent.provider_retry_max`. Omitted = off. */
+  provider_retry_max?: number;
+  /** See `Agent.provider_retry_interval_seconds`. Omitted = 1800. */
+  provider_retry_interval_seconds?: number;
   /** Optional creation-source attribution. Surfaced as the `template`
    *  property on the `agent_created` PostHog event. */
   template?: string;
@@ -897,6 +909,10 @@ export interface UpdateAgentRequest {
    * clears it, and a non-empty value stores a runtime-catalog ID.
    */
   service_tier?: string;
+  /** See `Agent.provider_retry_max`. Omitted preserves the saved value. */
+  provider_retry_max?: number;
+  /** See `Agent.provider_retry_interval_seconds`. Omitted preserves it. */
+  provider_retry_interval_seconds?: number;
 }
 
 /**
