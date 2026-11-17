@@ -178,8 +178,8 @@ func init() {
 	agentCreateCmd.Flags().Bool("public-to-workspace", false, "public_to: allow every workspace member to invoke this agent.")
 	agentCreateCmd.Flags().StringSlice("public-to-member", nil, "public_to: allow the given member user id(s) to invoke this agent. Repeatable.")
 	agentCreateCmd.Flags().Int32("max-concurrent-tasks", 6, "Maximum concurrent runs (1-50)")
-	agentCreateCmd.Flags().Int32("provider-retry-max", 0, "Times in a row to retry a run that failed with a model provider rate-limit/capacity or server error (0-20; 0 = off)")
-	agentCreateCmd.Flags().Int32("provider-retry-interval", 1800, "Seconds to wait before each provider retry (30-86400)")
+	agentCreateCmd.Flags().Int32("provider-retry-max", 0, "Times in a row to retry a run that failed with a model provider rate-limit/capacity or server error (0-50; 0 = off)")
+	agentCreateCmd.Flags().Int32("provider-retry-interval", 1800, "Seconds to wait before each provider retry (30-21600)")
 	agentCreateCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// agent update
@@ -211,8 +211,8 @@ func init() {
 	agentUpdateCmd.Flags().StringSlice("public-to-member", nil, "public_to: allow the given member user id(s) to invoke this agent. Repeatable.")
 	agentUpdateCmd.Flags().String("status", "", "New status")
 	agentUpdateCmd.Flags().Int32("max-concurrent-tasks", 0, "New max concurrent runs (1-50)")
-	agentUpdateCmd.Flags().Int32("provider-retry-max", 0, "New number of retries in a row for model provider rate-limit/capacity or server errors (0-20; 0 = off)")
-	agentUpdateCmd.Flags().Int32("provider-retry-interval", 0, "New wait in seconds before each provider retry (30-86400)")
+	agentUpdateCmd.Flags().Int32("provider-retry-max", 0, "New number of retries in a row for model provider rate-limit/capacity or server errors (0-50; 0 = off)")
+	agentUpdateCmd.Flags().Int32("provider-retry-interval", 0, "New wait in seconds before each provider retry (30-21600)")
 	agentUpdateCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// agent archive

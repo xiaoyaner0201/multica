@@ -682,11 +682,11 @@ export interface Agent {
   service_tier?: string;
   /**
    * How many times in a row a run that failed with a model-provider
-   * rate-limit/capacity or server error is retried (0 = off, at most 20).
+   * rate-limit/capacity or server error is retried (0 = off, at most 50).
    * Older servers omit it.
    */
   provider_retry_max?: number;
-  /** Seconds to wait before each provider retry (30-86400). */
+  /** Seconds to wait before each provider retry (30-21600). */
   provider_retry_interval_seconds?: number;
   owner_id: string | null;
   skills: AgentSkillSummary[];

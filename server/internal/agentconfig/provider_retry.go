@@ -7,11 +7,11 @@ import "fmt"
 const (
 	DefaultProviderRetryMax int32 = 0
 	MinProviderRetryMax     int32 = 0
-	MaxProviderRetryMax     int32 = 20
+	MaxProviderRetryMax     int32 = 50
 
 	DefaultProviderRetryIntervalSeconds int32 = 1800
 	MinProviderRetryIntervalSeconds     int32 = 30
-	MaxProviderRetryIntervalSeconds     int32 = 86400
+	MaxProviderRetryIntervalSeconds     int32 = 21600
 )
 
 func ValidateProviderRetryMax(value int32) error {

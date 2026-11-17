@@ -58,10 +58,10 @@ func TestApplyAgentProviderRetryFlags(t *testing.T) {
 	for _, tc := range []struct {
 		flag, value, want string
 	}{
-		{"provider-retry-max", "21", "--provider-retry-max must be between 0 and 20"},
-		{"provider-retry-max", "-1", "--provider-retry-max must be between 0 and 20"},
-		{"provider-retry-interval", "29", "--provider-retry-interval must be between 30 and 86400"},
-		{"provider-retry-interval", "86401", "--provider-retry-interval must be between 30 and 86400"},
+		{"provider-retry-max", "51", "--provider-retry-max must be between 0 and 50"},
+		{"provider-retry-max", "-1", "--provider-retry-max must be between 0 and 50"},
+		{"provider-retry-interval", "29", "--provider-retry-interval must be between 30 and 21600"},
+		{"provider-retry-interval", "21601", "--provider-retry-interval must be between 30 and 21600"},
 	} {
 		t.Run("rejects "+tc.flag+"="+tc.value, func(t *testing.T) {
 			body := map[string]any{}

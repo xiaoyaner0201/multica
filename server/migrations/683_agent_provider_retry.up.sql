@@ -11,7 +11,7 @@
 -- provider_retry_interval_seconds is the fixed wait before each such retry.
 -- It only matters while provider_retry_max > 0.
 --
--- Ranges (max 0..20, interval 30..86400) are validated in the handler, as for
+-- Ranges (max 0..50, interval 30..21600) are validated in the handler, as for
 -- max_concurrent_tasks; there is no CHECK constraint so the ALTER stays a
 -- catalog-only change with no table scan. Read by primary key only, so no
 -- index.

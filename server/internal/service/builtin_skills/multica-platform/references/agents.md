@@ -69,8 +69,8 @@ the rest (`runtime-config`, `custom-args`, `conversation-starters`, `model`,
 `thinking-level`, `service-tier`, `visibility`, …) on the flag being explicitly
 set — so omitted flags fall through to server defaults rather than sending
 empty strings. `--max-concurrent-tasks` is validated as 1–50 before the
-request is sent, `--provider-retry-max` as 0–20 and `--provider-retry-interval`
-as 30–86400 seconds. `--conversation-starters` is a JSON array of `{label, prompt}`
+request is sent, `--provider-retry-max` as 0–50 and `--provider-retry-interval`
+as 30–21600 seconds. `--conversation-starters` is a JSON array of `{label, prompt}`
 objects (at most 3); pass `'[]'` on update to clear.
 
 The HTTP body accepts: `name`, `description`, `instructions`,
@@ -86,10 +86,10 @@ By default a run that fails with a model provider rate-limit/capacity error
 (`agent_error.provider_server_error`) fails immediately. An agent can opt in to
 deferred retries with two independent settings:
 
-- `provider_retry_max` (`--provider-retry-max`): retries in a row, 0–20;
+- `provider_retry_max` (`--provider-retry-max`): retries in a row, 0–50;
   0 (the default) turns the feature off.
 - `provider_retry_interval_seconds` (`--provider-retry-interval`): the fixed
-  wait before each retry, 30–86400 seconds, 1800 by default.
+  wait before each retry, 30–21600 seconds, 1800 by default.
 
 ```bash
 multica agent update <agent-id> --provider-retry-max 10 --provider-retry-interval 1800

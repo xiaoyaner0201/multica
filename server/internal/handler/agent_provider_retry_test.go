@@ -25,11 +25,12 @@ func TestCreateAgent_ProviderRetryDefaultsAndBounds(t *testing.T) {
 	}{
 		{name: "omitted is off with a 30 minute interval", wantCode: http.StatusCreated, wantMax: 0, wantInterval: 1800},
 		{name: "explicit settings", fields: map[string]any{"provider_retry_max": 10, "provider_retry_interval_seconds": 1800}, wantCode: http.StatusCreated, wantMax: 10, wantInterval: 1800},
-		{name: "bounds accepted", fields: map[string]any{"provider_retry_max": 20, "provider_retry_interval_seconds": 30}, wantCode: http.StatusCreated, wantMax: 20, wantInterval: 30},
-		{name: "max above 20 rejected", fields: map[string]any{"provider_retry_max": 21}, wantCode: http.StatusBadRequest, wantError: "provider_retry_max must be between 0 and 20"},
-		{name: "negative max rejected", fields: map[string]any{"provider_retry_max": -1}, wantCode: http.StatusBadRequest, wantError: "provider_retry_max must be between 0 and 20"},
-		{name: "interval below 30 rejected", fields: map[string]any{"provider_retry_interval_seconds": 29}, wantCode: http.StatusBadRequest, wantError: "provider_retry_interval_seconds must be between 30 and 86400"},
-		{name: "interval above one day rejected", fields: map[string]any{"provider_retry_interval_seconds": 86401}, wantCode: http.StatusBadRequest, wantError: "provider_retry_interval_seconds must be between 30 and 86400"},
+		{name: "bounds accepted", fields: map[string]any{"provider_retry_max": 50, "provider_retry_interval_seconds": 30}, wantCode: http.StatusCreated, wantMax: 50, wantInterval: 30},
+		{name: "upper interval bound accepted", fields: map[string]any{"provider_retry_interval_seconds": 21600}, wantCode: http.StatusCreated, wantMax: 0, wantInterval: 21600},
+		{name: "max above 50 rejected", fields: map[string]any{"provider_retry_max": 51}, wantCode: http.StatusBadRequest, wantError: "provider_retry_max must be between 0 and 50"},
+		{name: "negative max rejected", fields: map[string]any{"provider_retry_max": -1}, wantCode: http.StatusBadRequest, wantError: "provider_retry_max must be between 0 and 50"},
+		{name: "interval below 30 rejected", fields: map[string]any{"provider_retry_interval_seconds": 29}, wantCode: http.StatusBadRequest, wantError: "provider_retry_interval_seconds must be between 30 and 21600"},
+		{name: "interval above six hours rejected", fields: map[string]any{"provider_retry_interval_seconds": 21601}, wantCode: http.StatusBadRequest, wantError: "provider_retry_interval_seconds must be between 30 and 21600"},
 	}
 
 	for i, tt := range tests {
@@ -100,7 +101,7 @@ func TestUpdateAgent_ProviderRetryBoundsAndOmission(t *testing.T) {
 	}
 
 	for _, body := range []map[string]any{
-		{"provider_retry_max": 21},
+		{"provider_retry_max": 51},
 		{"provider_retry_interval_seconds": 10},
 		{"provider_retry_max": 5, "provider_retry_interval_seconds": 100000},
 	} {
