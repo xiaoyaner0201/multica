@@ -120,6 +120,11 @@ type AgentResponse struct {
 	// ServiceTier is the runtime-native Codex execution tier persisted for
 	// this agent (empty = inherit local Codex configuration).
 	ServiceTier string `json:"service_tier"`
+	// ProviderRetryMax is how many times in a row a run that failed with a
+	// model-provider rate-limit/capacity or server error is retried
+	// (0 = off). ProviderRetryIntervalSeconds is the wait before each retry.
+	ProviderRetryMax             int32 `json:"provider_retry_max"`
+	ProviderRetryIntervalSeconds int32 `json:"provider_retry_interval_seconds"`
 	// ComposioToolkitAllowlist is the subset of Composio toolkit slugs this
 	// agent is allowed to mount as MCP at task dispatch — for ANY run that
 	// passes the agent's invocation permission, using the agent OWNER's
@@ -241,6 +246,9 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		UpdatedAt:                timestampToString(a.UpdatedAt),
 		ArchivedAt:               timestampToPtr(a.ArchivedAt),
 		ArchivedBy:               uuidToPtr(a.ArchivedBy),
+
+		ProviderRetryMax:             a.ProviderRetryMax,
+		ProviderRetryIntervalSeconds: a.ProviderRetryIntervalSeconds,
 	}
 }
 
@@ -1407,6 +1415,10 @@ type CreateAgentRequest struct {
 	Model              string                     `json:"model"`
 	ThinkingLevel      string                     `json:"thinking_level"`
 	ServiceTier        string                     `json:"service_tier"`
+	// Provider retry settings; omitted fields take the column defaults
+	// (off, 1800 seconds).
+	ProviderRetryMax             *int32 `json:"provider_retry_max"`
+	ProviderRetryIntervalSeconds *int32 `json:"provider_retry_interval_seconds"`
 	// ComposioToolkitAllowlist seeds the per-task overlay gate (MUL-3869). On
 	// create only the calling user can be the owner, so we accept the field
 	// unconditionally here; the cross-owner permission gate lives on PUT.
@@ -1506,6 +1518,10 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		req.Visibility = "private"
 	}
 	if err := defaultAndValidateAgentMaxConcurrentTasks(rawFields, &req.MaxConcurrentTasks); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := validateAgentProviderRetry(req.ProviderRetryMax, req.ProviderRetryIntervalSeconds); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -1716,6 +1732,9 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		ServiceTier:              pgtype.Text{String: req.ServiceTier, Valid: req.ServiceTier != ""},
 		ConversationStarters:     sp,
 		ComposioToolkitAllowlist: allowlist,
+
+		ProviderRetryMax:             ptrToInt4(req.ProviderRetryMax),
+		ProviderRetryIntervalSeconds: ptrToInt4(req.ProviderRetryIntervalSeconds),
 	})
 	if err != nil {
 		// Unique constraint on (workspace_id, name) — return a clear conflict error
@@ -1828,6 +1847,9 @@ type UpdateAgentRequest struct {
 	// ServiceTier follows the same tri-state contract as ThinkingLevel:
 	// omitted preserves, empty clears, and non-empty sets a Codex catalog ID.
 	ServiceTier *string `json:"service_tier"`
+	// Provider retry settings; omitted fields keep the stored value.
+	ProviderRetryMax             *int32 `json:"provider_retry_max"`
+	ProviderRetryIntervalSeconds *int32 `json:"provider_retry_interval_seconds"`
 	// ComposioToolkitAllowlist is a tri-state, same pattern as
 	// thinking_level, mcp_config:
 	//   - field omitted → no change (column preserved as-is)
@@ -2260,6 +2282,12 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		params.MaxConcurrentTasks = pgtype.Int4{Int32: *req.MaxConcurrentTasks, Valid: true}
 	}
+	if err := validateAgentProviderRetry(req.ProviderRetryMax, req.ProviderRetryIntervalSeconds); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	params.ProviderRetryMax = ptrToInt4(req.ProviderRetryMax)
+	params.ProviderRetryIntervalSeconds = ptrToInt4(req.ProviderRetryIntervalSeconds)
 	if req.Model != nil {
 		params.Model = pgtype.Text{String: *req.Model, Valid: true}
 	} else if req.RuntimeID != nil && existing.Model.Valid && agent.ModelKnownIncompatibleWithProvider(targetProvider, existing.Model.String) {
