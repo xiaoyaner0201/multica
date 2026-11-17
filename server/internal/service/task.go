@@ -5351,6 +5351,28 @@ func (s *TaskService) FailTaskWithTransition(ctx context.Context, taskID pgtype.
 				retryOverlay = s.buildRuntimeMCPOverlay(ctx, parent.OriginatorUserID, agent)
 			}
 		}
+	} else if providerRetryReasons[failureReason] {
+		// Opt-in, per agent (GitHub #10815). Unlike the infrastructure retry
+		// above, the agent is required: its settings are the policy.
+		parent, perr := s.Queries.GetAgentTask(ctx, taskID)
+		var agent db.Agent
+		if perr == nil {
+			agent, perr = s.Queries.GetAgent(ctx, parent.AgentID)
+		}
+		var plan providerRetryPlan
+		var ok bool
+		if perr == nil {
+			plan, ok, perr = planProviderRetry(ctx, s.Queries, failureReason, parent, agent, time.Now())
+		}
+		if perr != nil {
+			slog.Warn("fail task provider retry: plan failed",
+				"task_id", util.UUIDToString(taskID), "error", perr)
+		} else if ok {
+			wantRetry = true
+			retryFireAt = plan.fireAt
+			retryMaxAttempts = plan.maxAttempts
+			retryOverlay = s.buildRuntimeMCPOverlay(ctx, parent.OriginatorUserID, agent)
+		}
 	}
 
 	var task db.AgentTaskQueue
@@ -5920,6 +5942,9 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	if parent.FailureReason.Valid {
 		reason = parent.FailureReason.String
 	}
+	if providerRetryReasons[reason] {
+		return s.maybeRetryProviderFailure(ctx, parent, reason)
+	}
 	if !retryableReasons[reason] {
 		return nil, nil
 	}
@@ -5966,6 +5991,43 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	if delay := retryDelayForAttempt(reason, parent.Attempt); delay > 0 {
 		retryFireAt = pgtype.Timestamptz{Time: time.Now().Add(delay), Valid: true}
 	}
+	return s.createSweptRetry(ctx, parent, reason, retryFireAt,
+		pgtype.Int4{Int32: retryAttemptCeiling(reason, parent.MaxAttempts), Valid: true},
+		runtimeMCPOverlay)
+}
+
+// maybeRetryProviderFailure is the sweeper-path counterpart of FailTask's
+// opt-in provider retry (GitHub #10815).
+func (s *TaskService) maybeRetryProviderFailure(ctx context.Context, parent db.AgentTaskQueue, reason string) (*db.AgentTaskQueue, error) {
+	agent, err := s.Queries.GetAgent(ctx, parent.AgentID)
+	if err != nil {
+		slog.Warn("task provider retry: load agent failed",
+			"parent_task_id", util.UUIDToString(parent.ID),
+			"agent_id", util.UUIDToString(parent.AgentID),
+			"error", err,
+		)
+		return nil, nil
+	}
+	plan, ok, err := planProviderRetry(ctx, s.Queries, reason, parent, agent, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+	return s.createSweptRetry(ctx, parent, reason, plan.fireAt, plan.maxAttempts,
+		s.buildRuntimeMCPOverlay(ctx, parent.OriginatorUserID, agent))
+}
+
+// createSweptRetry inserts the retry child MaybeRetryFailedTask decided on.
+func (s *TaskService) createSweptRetry(
+	ctx context.Context,
+	parent db.AgentTaskQueue,
+	reason string,
+	retryFireAt pgtype.Timestamptz,
+	maxAttempts pgtype.Int4,
+	runtimeMCPOverlay runtimeMCPOverlayData,
+) (*db.AgentTaskQueue, error) {
 	// Same advisory slot check as FailTask's path, for the same reason: skip the
 	// work when a successor is already visible. Losing the race is handled by
 	// CreateRetryTask yielding the slot, which this caller reads as "no retry".
@@ -6005,7 +6067,7 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 			NewTaskID:            dbid.NewV7(),
 			ID:                   parent.ID,
 			FireAt:               retryFireAt,
-			MaxAttempts:          pgtype.Int4{Int32: retryAttemptCeiling(reason, parent.MaxAttempts), Valid: true},
+			MaxAttempts:          maxAttempts,
 			RuntimeMcpOverlay:    runtimeMCPOverlay.Overlay,
 			RuntimeConnectedApps: runtimeMCPOverlay.ConnectedApps,
 		})
