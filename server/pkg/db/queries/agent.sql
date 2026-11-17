@@ -67,14 +67,17 @@ INSERT INTO agent (
     runtime_config, runtime_id, visibility, max_concurrent_tasks, owner_id,
     instructions, custom_env, custom_args, mcp_config, model, thinking_level,
     service_tier, conversation_starters,
-    composio_toolkit_allowlist, permission_mode
+    composio_toolkit_allowlist, permission_mode,
+    provider_retry_max, provider_retry_interval_seconds
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16,
     $17, COALESCE(sqlc.narg('conversation_starters')::jsonb, '[]'::jsonb),
     sqlc.narg('composio_toolkit_allowlist')::text[],
-    COALESCE(sqlc.narg('permission_mode'), 'private')
+    COALESCE(sqlc.narg('permission_mode'), 'private'),
+    COALESCE(sqlc.narg('provider_retry_max')::int, 0),
+    COALESCE(sqlc.narg('provider_retry_interval_seconds')::int, 1800)
 )
 RETURNING *;
 
@@ -153,6 +156,8 @@ UPDATE agent SET
     service_tier = COALESCE(sqlc.narg('service_tier'), service_tier),
     conversation_starters = COALESCE(sqlc.narg('conversation_starters'), conversation_starters),
     composio_toolkit_allowlist = COALESCE(sqlc.narg('composio_toolkit_allowlist')::text[], composio_toolkit_allowlist),
+    provider_retry_max = COALESCE(sqlc.narg('provider_retry_max')::int, provider_retry_max),
+    provider_retry_interval_seconds = COALESCE(sqlc.narg('provider_retry_interval_seconds')::int, provider_retry_interval_seconds),
     updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -788,6 +793,32 @@ WHERE atq.id = $1;
 SELECT * FROM agent_task_queue
 WHERE id = $1
 FOR UPDATE;
+
+-- name: CountProviderRetryAncestors :one
+-- How many model-provider retries this task's automatic-retry chain has
+-- already used: the ancestors (not the task itself) that failed with
+-- agent_error.provider_capacity_or_rate_limit or
+-- agent_error.provider_server_error. A chain only continues through failures,
+-- and every comment, assignment or manual rerun starts a new root with no
+-- retry_of_task_id, so the count restarts after any success (GitHub #10815).
+-- Ancestor rows are terminal and never rewritten, so no lock is needed.
+WITH RECURSIVE chain(id, retry_of_task_id, failure_reason, depth) AS (
+    SELECT t.id, t.retry_of_task_id, t.failure_reason, 0
+    FROM agent_task_queue t
+    WHERE t.id = $1
+    UNION ALL
+    SELECT p.id, p.retry_of_task_id, p.failure_reason, chain.depth + 1
+    FROM agent_task_queue p
+    JOIN chain ON p.id = chain.retry_of_task_id
+    WHERE chain.depth < 1000
+)
+SELECT count(*)::int
+FROM chain
+WHERE depth > 0
+  AND failure_reason IN (
+      'agent_error.provider_capacity_or_rate_limit',
+      'agent_error.provider_server_error'
+  );
 
 -- name: HasRetryTaskForParent :one
 -- Defense-in-depth for the recovery path: a delegated failure with any retry
