@@ -69,13 +69,39 @@ the rest (`runtime-config`, `custom-args`, `conversation-starters`, `model`,
 `thinking-level`, `service-tier`, `visibility`, …) on the flag being explicitly
 set — so omitted flags fall through to server defaults rather than sending
 empty strings. `--max-concurrent-tasks` is validated as 1–50 before the
-request is sent. `--conversation-starters` is a JSON array of `{label, prompt}`
+request is sent, `--provider-retry-max` as 0–20 and `--provider-retry-interval`
+as 30–86400 seconds. `--conversation-starters` is a JSON array of `{label, prompt}`
 objects (at most 3); pass `'[]'` on update to clear.
 
 The HTTP body accepts: `name`, `description`, `instructions`,
 `conversation_starters`, `avatar_url`, `runtime_id`, `runtime_config`,
 `custom_env`, `custom_args`, `model`, `thinking_level`, `service_tier`,
-`visibility`, `max_concurrent_tasks`, `mcp_config`, `skill_ids`.
+`visibility`, `max_concurrent_tasks`, `provider_retry_max`,
+`provider_retry_interval_seconds`, `mcp_config`, `skill_ids`.
+
+## Retrying model provider errors
+
+By default a run that fails with a model provider rate-limit/capacity error
+(`agent_error.provider_capacity_or_rate_limit`) or server error
+(`agent_error.provider_server_error`) fails immediately. An agent can opt in to
+deferred retries with two independent settings:
+
+- `provider_retry_max` (`--provider-retry-max`): retries in a row, 0–20;
+  0 (the default) turns the feature off.
+- `provider_retry_interval_seconds` (`--provider-retry-interval`): the fixed
+  wait before each retry, 30–86400 seconds, 1800 by default.
+
+```bash
+multica agent update <agent-id> --provider-retry-max 10 --provider-retry-interval 1800
+```
+
+The count is per issue comment thread and covers only consecutive provider
+failures: a successful run, new comment, new assignment or manual rerun starts
+from zero. Other failure reasons (quota, auth, configuration, unknown model,
+context overflow) never use it. Chats, Autopilot run-only runs and Triage runs
+are not retried. While a retry waits, no failure comment is posted and a
+delegating agent is not woken; a new run on the same thread cancels the
+waiting retry. `agent copy` does not copy these settings.
 
 ## Copying an agent
 
