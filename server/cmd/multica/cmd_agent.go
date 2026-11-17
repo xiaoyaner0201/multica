@@ -178,6 +178,8 @@ func init() {
 	agentCreateCmd.Flags().Bool("public-to-workspace", false, "public_to: allow every workspace member to invoke this agent.")
 	agentCreateCmd.Flags().StringSlice("public-to-member", nil, "public_to: allow the given member user id(s) to invoke this agent. Repeatable.")
 	agentCreateCmd.Flags().Int32("max-concurrent-tasks", 6, "Maximum concurrent runs (1-50)")
+	agentCreateCmd.Flags().Int32("provider-retry-max", 0, "Times in a row to retry a run that failed with a model provider rate-limit/capacity or server error (0-20; 0 = off)")
+	agentCreateCmd.Flags().Int32("provider-retry-interval", 1800, "Seconds to wait before each provider retry (30-86400)")
 	agentCreateCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// agent update
@@ -209,6 +211,8 @@ func init() {
 	agentUpdateCmd.Flags().StringSlice("public-to-member", nil, "public_to: allow the given member user id(s) to invoke this agent. Repeatable.")
 	agentUpdateCmd.Flags().String("status", "", "New status")
 	agentUpdateCmd.Flags().Int32("max-concurrent-tasks", 0, "New max concurrent runs (1-50)")
+	agentUpdateCmd.Flags().Int32("provider-retry-max", 0, "New number of retries in a row for model provider rate-limit/capacity or server errors (0-20; 0 = off)")
+	agentUpdateCmd.Flags().Int32("provider-retry-interval", 0, "New wait in seconds before each provider retry (30-86400)")
 	agentUpdateCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// agent archive
@@ -716,6 +720,9 @@ func runAgentCreate(cmd *cobra.Command, _ []string) error {
 		}
 		body["max_concurrent_tasks"] = v
 	}
+	if err := applyAgentProviderRetryFlags(cmd, body); err != nil {
+		return err
+	}
 
 	ctx, cancel := cli.APIContext(context.Background())
 	defer cancel()
@@ -807,6 +814,9 @@ func runAgentUpdate(cmd *cobra.Command, args []string) error {
 		}
 		body["max_concurrent_tasks"] = v
 	}
+	if err := applyAgentProviderRetryFlags(cmd, body); err != nil {
+		return err
+	}
 	if mc, ok, err := resolveMcpConfig(cmd); err != nil {
 		return err
 	} else if ok {
@@ -814,7 +824,7 @@ func runAgentUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(body) == 0 {
-		return fmt.Errorf("no fields to update; use --name, --description, --instructions, --conversation-starters, --runtime-id, --runtime-config, --model, --thinking-level, --service-tier, --custom-args, --mcp-config, --visibility, --status, or --max-concurrent-tasks (env vars now live behind `multica agent env set <id>`)")
+		return fmt.Errorf("no fields to update; use --name, --description, --instructions, --conversation-starters, --runtime-id, --runtime-config, --model, --thinking-level, --service-tier, --custom-args, --mcp-config, --visibility, --status, --max-concurrent-tasks, --provider-retry-max, or --provider-retry-interval (env vars now live behind `multica agent env set <id>`)")
 	}
 
 	ctx, cancel := cli.APIContext(context.Background())
